@@ -1,0 +1,260 @@
+// Prisma Schema for VendeAI SaaS PostgreSQL (Supabase)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum FinanceType {
+  INCOME
+  EXPENSE
+}
+
+enum FileType {
+  IMAGE
+  PDF
+  DOCUMENT
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  passwordHash  String?
+  googleId      String?        @unique
+  role          Role           @default(USER)
+  isActive      Boolean        @default(true)
+  refreshToken  String?
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  profile       Profile?
+  clients       Client[]
+  quotes        Quote[]
+  contracts     Contract[]
+  financeEntries FinanceEntry[]
+  categories    Category[]
+  notifications Notification[]
+  files         File[]
+  settings      Setting?
+  auditLogs     AuditLog[]
+
+  @@map("users")
+}
+
+model Profile {
+  id           String   @id @default(uuid())
+  userId       String   @unique @map("user_id")
+  fullName     String   @map("full_name")
+  companyName  String?  @map("company_name")
+  cpfCnpj      String?  @map("cpf_cnpj")
+  phone        String?
+  avatarUrl    String?  @map("avatar_url")
+  logoUrl      String?  @map("logo_url")
+  address      String?
+  city         String?
+  state        String?
+  zipCode      String?  @map("zip_code")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+model Client {
+  id           String      @id @default(uuid())
+  userId       String      @map("user_id")
+  name         String
+  companyName  String?     @map("company_name")
+  email        String?
+  phone        String?
+  cpfCnpj      String?     @map("cpf_cnpj")
+  address      String?
+  notes        String?
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quotes       Quote[]
+  contracts    Contract[]
+
+  @@index([userId])
+  @@index([name])
+  @@map("clients")
+}
+
+model Quote {
+  id           String      @id @default(uuid())
+  userId       String      @map("user_id")
+  clientId     String      @map("client_id")
+  codeNumber   String      @map("code_number")
+  status       QuoteStatus @default(DRAFT)
+  subtotal     Float       @default(0.0)
+  discount     Float       @default(0.0)
+  total        Float       @default(0.0)
+  notes        String?
+  validUntil   DateTime?   @map("valid_until")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client       Client      @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  items        QuoteItem[]
+
+  @@index([userId])
+  @@index([clientId])
+  @@map("quotes")
+}
+
+model QuoteItem {
+  id          String   @id @default(uuid())
+  quoteId     String   @map("quote_id")
+  description String
+  quantity    Int      @default(1)
+  unitPrice   Float    @map("unit_price")
+  totalPrice  Float    @map("total_price")
+
+  quote       Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@map("quote_items")
+}
+
+model Contract {
+  id          String         @id @default(uuid())
+  userId      String         @map("user_id")
+  clientId    String         @map("client_id")
+  title       String
+  content     String         @db.Text
+  value       Float          @default(0.0)
+  status      ContractStatus @default(DRAFT)
+  startDate   DateTime?      @map("start_date")
+  endDate     DateTime?      @map("end_date")
+  pdfUrl      String?        @map("pdf_url")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client      Client         @relation(fields: [clientId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([clientId])
+  @@map("contracts")
+}
+
+model Category {
+  id          String         @id @default(uuid())
+  userId      String         @map("user_id")
+  name        String
+  type        FinanceType
+  colorHex    String?        @default("#4F46E5") @map("color_hex")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entries     FinanceEntry[]
+
+  @@unique([userId, name, type])
+  @@map("categories")
+}
+
+model FinanceEntry {
+  id          String      @id @default(uuid())
+  userId      String      @map("user_id")
+  categoryId  String?     @map("category_id")
+  description String
+  amount      Float
+  type        FinanceType
+  entryDate   DateTime    @default(now()) @map("entry_date")
+  notes       String?
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category    Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([entryDate])
+  @@map("finance_entries")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  title     String
+  message   String
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("notifications")
+}
+
+model File {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  filename  String
+  fileUrl   String   @map("file_url")
+  fileType  FileType @default(DOCUMENT) @map("file_type")
+  sizeBytes Int      @default(0) @map("size_bytes")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("files")
+}
+
+model Setting {
+  id            String   @id @default(uuid())
+  userId        String   @unique @map("user_id")
+  themeMode     String   @default("system") @map("theme_mode")
+  language      String   @default("pt-BR")
+  emailNotify   Boolean  @default(true) @map("email_notify")
+  aiProvider    String   @default("mock") @map("ai_provider")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("settings")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?  @map("user_id")
+  action    String
+  resource  String
+  ipAddress String?  @map("ip_address")
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@map("audit_logs")
+}

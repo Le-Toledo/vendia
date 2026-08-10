@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: vendeai_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-vendeai_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-vendeai_pass_2026}
+      POSTGRES_DB: ${DB_NAME:-vendeai_db}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-vendeai_user} -d ${DB_NAME:-vendeai_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: vendeai_backend
+    restart: always
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_URL: "postgresql://${DB_USER:-vendeai_user}:${DB_PASSWORD:-vendeai_pass_2026}@postgres:5432/${DB_NAME:-vendeai_db}?schema=public"
+      JWT_SECRET: ${JWT_SECRET:-vendeai_super_secret_jwt_key_2026}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-vendeai_super_secret_refresh_jwt_key_2026}
+      AI_PROVIDER: ${AI_PROVIDER:-mock}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
