@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateClientDto, UpdateClientDto } from './dto/client.dto';
+import { PaginationDto, paginationMeta } from '../../common/dto/pagination.dto';
 
 @Injectable()
 export class ClientsService {
@@ -15,7 +16,7 @@ export class ClientsService {
     });
   }
 
-  async findAll(userId: string, search?: string) {
+  async findAll(userId: string, search: string | undefined, { page, pageSize }: PaginationDto) {
     const where: any = { userId };
 
     if (search && search.trim() !== '') {
@@ -28,15 +29,21 @@ export class ClientsService {
       ];
     }
 
-    return this.prisma.client.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        _count: {
-          select: { quotes: true, contracts: true },
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.client.findMany({
+        where,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          _count: {
+            select: { quotes: true, contracts: true },
+          },
         },
-      },
-    });
+      }),
+      this.prisma.client.count({ where }),
+    ]);
+    return paginationMeta(items, total, page, pageSize);
   }
 
   async findOne(userId: string, id: string) {

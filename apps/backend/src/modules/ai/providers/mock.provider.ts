@@ -6,13 +6,17 @@ export class MockAIProvider implements AIProvider {
   readonly name = 'Mock AI Engine (Dev)';
   private readonly logger = new Logger(MockAIProvider.name);
 
-  async generateText(prompt: string, context?: Record<string, any>): Promise<AIResponse> {
+  async generateText(prompt: string, _context?: Record<string, any>): Promise<AIResponse> {
     this.logger.log(`[MockAI] Executando prompt com contexto: ${prompt.slice(0, 50)}...`);
 
     const lowerPrompt = prompt.toLowerCase();
 
     // 1. Orçamento / Proposta Comercial
-    if (lowerPrompt.includes('orçamento') || lowerPrompt.includes('orcamento') || lowerPrompt.includes('proposta')) {
+    if (
+      lowerPrompt.includes('orçamento') ||
+      lowerPrompt.includes('orcamento') ||
+      lowerPrompt.includes('proposta')
+    ) {
       return {
         content: `### 📋 Proposta & Orçamento Gerado por IA\n\n**Projeto:** Serviços de Gestão e Tecnologia\n\n1. **Desenvolvimento de Solução / Serviço:** R$ 2.500,00\n2. **Suporte & Configuração Inicial:** R$ 500,00\n\n**Total:** R$ 3.000,00 (Condições: 50% de entrada + 50% na entrega).\n\n*Clique no botão abaixo para transformar esta resposta em um orçamento oficial no VendeAI!*`,
         actionType: 'create_quote',
@@ -39,7 +43,11 @@ export class MockAIProvider implements AIProvider {
     }
 
     // 3. WhatsApp / Cobrança
-    if (lowerPrompt.includes('whatsapp') || lowerPrompt.includes('cobrança') || lowerPrompt.includes('cobranca')) {
+    if (
+      lowerPrompt.includes('whatsapp') ||
+      lowerPrompt.includes('cobrança') ||
+      lowerPrompt.includes('cobranca')
+    ) {
       return {
         content: `💬 *Mensagem para WhatsApp (Cobrança Amigável):*\n\n"Olá [Nome do Cliente], tudo bem? 😊\nPassando para lembrar que o pagamento da parcela referente aos serviços prestados vence em breve.\n\nCaso já tenha efetuado o pagamento, por gentileza desconsidere esta mensagem. Se precisar do código PIX novamente, estou à disposição!"`,
         actionType: 'create_copy',

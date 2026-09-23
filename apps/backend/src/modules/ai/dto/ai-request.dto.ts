@@ -14,7 +14,10 @@ export class ChatAiDto {
 }
 
 export class GenerateMarketingCopyDto {
-  @ApiProperty({ example: 'Post Instagram', description: 'Canal: Instagram, Facebook, WhatsApp, Mercado Livre, Shopee, Amazon, Ads' })
+  @ApiProperty({
+    example: 'Post Instagram',
+    description: 'Canal: Instagram, Facebook, WhatsApp, Mercado Livre, Shopee, Amazon, Ads',
+  })
   @IsString()
   @IsNotEmpty()
   targetChannel: string;

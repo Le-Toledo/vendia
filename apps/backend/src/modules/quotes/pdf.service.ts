@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import * as PDFDocument from 'pdfkit';
+import PDFDocument from 'pdfkit';
 
 @Injectable()
 export class PdfService {
@@ -16,7 +16,9 @@ export class PdfService {
       doc.fontSize(22).fillColor('#1E293B').text('VENDEAI - ORÇAMENTO', { align: 'center' });
       doc.moveDown();
       doc.fontSize(12).fillColor('#64748B').text(`Código: ${quote.codeNumber}`, { align: 'right' });
-      doc.text(`Data: ${new Date(quote.createdAt).toLocaleDateString('pt-BR')}`, { align: 'right' });
+      doc.text(`Data: ${new Date(quote.createdAt).toLocaleDateString('pt-BR')}`, {
+        align: 'right',
+      });
       doc.moveDown();
 
       // Client info
@@ -35,9 +37,12 @@ export class PdfService {
 
       quote.items?.forEach((item: any, index: number) => {
         const itemTotal = (item.quantity * item.unitPrice).toFixed(2);
-        doc.fontSize(10).fillColor('#1E293B').text(
-          `${index + 1}. ${item.description} - Qtd: ${item.quantity} x R$ ${item.unitPrice.toFixed(2)} = R$ ${itemTotal}`
-        );
+        doc
+          .fontSize(10)
+          .fillColor('#1E293B')
+          .text(
+            `${index + 1}. ${item.description} - Qtd: ${item.quantity} x R$ ${item.unitPrice.toFixed(2)} = R$ ${itemTotal}`,
+          );
       });
 
       doc.moveDown();
@@ -46,7 +51,10 @@ export class PdfService {
       doc.fontSize(12).fillColor('#0F172A');
       doc.text(`Subtotal: R$ ${quote.subtotal.toFixed(2)}`, { align: 'right' });
       doc.text(`Desconto: R$ ${quote.discount.toFixed(2)}`, { align: 'right' });
-      doc.fontSize(14).fillColor('#10B981').text(`TOTAL: R$ ${quote.total.toFixed(2)}`, { align: 'right' });
+      doc
+        .fontSize(14)
+        .fillColor('#10B981')
+        .text(`TOTAL: R$ ${quote.total.toFixed(2)}`, { align: 'right' });
 
       if (quote.notes) {
         doc.moveDown();

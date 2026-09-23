@@ -2,6 +2,9 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateQuoteDto, UpdateQuoteDto } from './dto/quote.dto';
 import { PdfService } from './pdf.service';
+import { Prisma, QuoteStatus } from '@prisma/client';
+import { randomUUID } from 'crypto';
+import { PaginationDto, paginationMeta } from '../../common/dto/pagination.dto';
 
 @Injectable()
 export class QuotesService {
@@ -11,22 +14,24 @@ export class QuotesService {
   ) {}
 
   async create(userId: string, dto: CreateQuoteDto) {
-    const codeNumber = `ORC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    await this.assertClientOwnership(userId, dto.clientId);
+    const codeNumber = `ORC-${new Date().getFullYear()}-${randomUUID().slice(0, 8).toUpperCase()}`;
 
-    let subtotal = 0;
+    let subtotal = new Prisma.Decimal(0);
     const itemsData = dto.items.map((item) => {
-      const itemTotal = item.quantity * item.unitPrice;
-      subtotal += itemTotal;
+      const unitPrice = new Prisma.Decimal(item.unitPrice);
+      const itemTotal = unitPrice.mul(item.quantity);
+      subtotal = subtotal.add(itemTotal);
       return {
         description: item.description,
         quantity: item.quantity,
-        unitPrice: item.unitPrice,
+        unitPrice,
         totalPrice: itemTotal,
       };
     });
 
-    const discount = dto.discount || 0;
-    const total = Math.max(0, subtotal - discount);
+    const discount = new Prisma.Decimal(dto.discount || 0);
+    const total = Prisma.Decimal.max(0, subtotal.sub(discount));
 
     return this.prisma.quote.create({
       data: {
@@ -49,20 +54,23 @@ export class QuotesService {
     });
   }
 
-  async findAll(userId: string, status?: string) {
+  async findAll(userId: string, status: string | undefined, { page, pageSize }: PaginationDto) {
     const where: any = { userId };
     if (status) {
-      where.status = status;
+      where.status = status as QuoteStatus;
     }
 
-    return this.prisma.quote.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        client: true,
-        items: true,
-      },
-    });
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.quote.findMany({
+        where,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { createdAt: 'desc' },
+        include: { client: true, items: true },
+      }),
+      this.prisma.quote.count({ where }),
+    ]);
+    return paginationMeta(items, total, page, pageSize);
   }
 
   async findOne(userId: string, id: string) {
@@ -83,42 +91,39 @@ export class QuotesService {
 
   async update(userId: string, id: string, dto: UpdateQuoteDto) {
     await this.findOne(userId, id);
+    await this.assertClientOwnership(userId, dto.clientId);
 
-    let subtotal = 0;
+    let subtotal = new Prisma.Decimal(0);
     const itemsData = dto.items.map((item) => {
-      const itemTotal = item.quantity * item.unitPrice;
-      subtotal += itemTotal;
+      const unitPrice = new Prisma.Decimal(item.unitPrice);
+      const itemTotal = unitPrice.mul(item.quantity);
+      subtotal = subtotal.add(itemTotal);
       return {
         description: item.description,
         quantity: item.quantity,
-        unitPrice: item.unitPrice,
+        unitPrice,
         totalPrice: itemTotal,
       };
     });
 
-    const discount = dto.discount || 0;
-    const total = Math.max(0, subtotal - discount);
+    const discount = new Prisma.Decimal(dto.discount || 0);
+    const total = Prisma.Decimal.max(0, subtotal.sub(discount));
 
-    // Delete existing items & recreate
-    await this.prisma.quoteItem.deleteMany({ where: { quoteId: id } });
-
-    return this.prisma.quote.update({
-      where: { id },
-      data: {
-        clientId: dto.clientId,
-        status: dto.status,
-        subtotal,
-        discount,
-        total,
-        notes: dto.notes,
-        items: {
-          create: itemsData,
+    return this.prisma.$transaction(async (tx) => {
+      await tx.quoteItem.deleteMany({ where: { quoteId: id } });
+      return tx.quote.update({
+        where: { id },
+        data: {
+          clientId: dto.clientId,
+          status: dto.status,
+          subtotal,
+          discount,
+          total,
+          notes: dto.notes,
+          items: { create: itemsData },
         },
-      },
-      include: {
-        client: true,
-        items: true,
-      },
+        include: { client: true, items: true },
+      });
     });
   }
 
@@ -127,13 +132,13 @@ export class QuotesService {
 
     return this.create(userId, {
       clientId: original.clientId,
-      discount: original.discount,
+      discount: original.discount.toNumber(),
       notes: `Cópia de ${original.codeNumber}. ${original.notes || ''}`,
       status: 'DRAFT',
       items: original.items.map((i) => ({
         description: i.description,
         quantity: i.quantity,
-        unitPrice: i.unitPrice,
+        unitPrice: i.unitPrice.toNumber(),
       })),
     });
   }
@@ -149,5 +154,13 @@ export class QuotesService {
   async generatePdf(userId: string, id: string): Promise<Buffer> {
     const quote = await this.findOne(userId, id);
     return this.pdfService.generateQuotePdf(quote);
+  }
+
+  private async assertClientOwnership(userId: string, clientId: string) {
+    const client = await this.prisma.client.findFirst({
+      where: { id: clientId, userId },
+      select: { id: true },
+    });
+    if (!client) throw new NotFoundException('Cliente não encontrado');
   }
 }

@@ -41,67 +41,73 @@ enum FileType {
 }
 
 model User {
-  id            String         @id @default(uuid())
-  email         String         @unique
-  passwordHash  String?
-  googleId      String?        @unique
-  role          Role           @default(USER)
-  isActive      Boolean        @default(true)
-  refreshToken  String?
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String?
+  googleId     String?  @unique
+  appleId String? @unique @map("apple_id")
+  appleRefreshToken String? @map("apple_refresh_token")
+  role         Role     @default(USER)
+  isActive     Boolean  @default(true)
+  refreshToken String?
+  sessionVersion Int @default(0) @map("session_version")
+  passwordResetHash String? @map("password_reset_hash")
+  passwordResetExpiresAt DateTime? @map("password_reset_expires_at")
+  passwordResetRequestedAt DateTime? @map("password_reset_requested_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
-  profile       Profile?
-  clients       Client[]
-  quotes        Quote[]
-  contracts     Contract[]
+  profile        Profile?
+  clients        Client[]
+  quotes         Quote[]
+  contracts      Contract[]
   financeEntries FinanceEntry[]
-  categories    Category[]
-  notifications Notification[]
-  files         File[]
-  settings      Setting?
-  auditLogs     AuditLog[]
+  categories     Category[]
+  notifications  Notification[]
+  files          File[]
+  settings       Setting?
+  auditLogs      AuditLog[]
 
   @@map("users")
 }
 
 model Profile {
-  id           String   @id @default(uuid())
-  userId       String   @unique @map("user_id")
-  fullName     String   @map("full_name")
-  companyName  String?  @map("company_name")
-  cpfCnpj      String?  @map("cpf_cnpj")
-  phone        String?
-  avatarUrl    String?  @map("avatar_url")
-  logoUrl      String?  @map("logo_url")
-  address      String?
-  city         String?
-  state        String?
-  zipCode      String?  @map("zip_code")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id          String   @id @default(uuid())
+  userId      String   @unique @map("user_id")
+  fullName    String   @map("full_name")
+  companyName String?  @map("company_name")
+  cpfCnpj     String?  @map("cpf_cnpj")
+  phone       String?
+  avatarUrl   String?  @map("avatar_url")
+  logoUrl     String?  @map("logo_url")
+  address     String?
+  city        String?
+  state       String?
+  zipCode     String?  @map("zip_code")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("profiles")
 }
 
 model Client {
-  id           String      @id @default(uuid())
-  userId       String      @map("user_id")
-  name         String
-  companyName  String?     @map("company_name")
-  email        String?
-  phone        String?
-  cpfCnpj      String?     @map("cpf_cnpj")
-  address      String?
-  notes        String?
-  createdAt    DateTime    @default(now()) @map("created_at")
-  updatedAt    DateTime    @updatedAt @map("updated_at")
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  name        String
+  companyName String?  @map("company_name")
+  email       String?
+  phone       String?
+  cpfCnpj     String?  @map("cpf_cnpj")
+  address     String?
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  quotes       Quote[]
-  contracts    Contract[]
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quotes    Quote[]
+  contracts Contract[]
 
   @@index([userId])
   @@index([name])
@@ -109,57 +115,58 @@ model Client {
 }
 
 model Quote {
-  id           String      @id @default(uuid())
-  userId       String      @map("user_id")
-  clientId     String      @map("client_id")
-  codeNumber   String      @map("code_number")
-  status       QuoteStatus @default(DRAFT)
-  subtotal     Float       @default(0.0)
-  discount     Float       @default(0.0)
-  total        Float       @default(0.0)
-  notes        String?
-  validUntil   DateTime?   @map("valid_until")
-  createdAt    DateTime    @default(now()) @map("created_at")
-  updatedAt    DateTime    @updatedAt @map("updated_at")
+  id         String      @id @default(uuid())
+  userId     String      @map("user_id")
+  clientId   String      @map("client_id")
+  codeNumber String      @map("code_number")
+  status     QuoteStatus @default(DRAFT)
+  subtotal   Decimal     @default(0) @db.Decimal(14, 2)
+  discount   Decimal     @default(0) @db.Decimal(14, 2)
+  total      Decimal     @default(0) @db.Decimal(14, 2)
+  notes      String?
+  validUntil DateTime?   @map("valid_until")
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
 
-  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  client       Client      @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  items        QuoteItem[]
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client Client      @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  items  QuoteItem[]
 
+  @@unique([userId, codeNumber])
   @@index([userId])
   @@index([clientId])
   @@map("quotes")
 }
 
 model QuoteItem {
-  id          String   @id @default(uuid())
-  quoteId     String   @map("quote_id")
+  id          String  @id @default(uuid())
+  quoteId     String  @map("quote_id")
   description String
-  quantity    Int      @default(1)
-  unitPrice   Float    @map("unit_price")
-  totalPrice  Float    @map("total_price")
+  quantity    Int     @default(1)
+  unitPrice   Decimal @map("unit_price") @db.Decimal(14, 2)
+  totalPrice  Decimal @map("total_price") @db.Decimal(14, 2)
 
-  quote       Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
 
   @@map("quote_items")
 }
 
 model Contract {
-  id          String         @id @default(uuid())
-  userId      String         @map("user_id")
-  clientId    String         @map("client_id")
-  title       String
-  content     String         @db.Text
-  value       Float          @default(0.0)
-  status      ContractStatus @default(DRAFT)
-  startDate   DateTime?      @map("start_date")
-  endDate     DateTime?      @map("end_date")
-  pdfUrl      String?        @map("pdf_url")
-  createdAt   DateTime       @default(now()) @map("created_at")
-  updatedAt   DateTime       @updatedAt @map("updated_at")
+  id        String         @id @default(uuid())
+  userId    String         @map("user_id")
+  clientId  String         @map("client_id")
+  title     String
+  content   String         @db.Text
+  value     Decimal        @default(0) @db.Decimal(14, 2)
+  status    ContractStatus @default(DRAFT)
+  startDate DateTime?      @map("start_date")
+  endDate   DateTime?      @map("end_date")
+  pdfUrl    String?        @map("pdf_url")
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
 
-  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  client      Client         @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client Client @relation(fields: [clientId], references: [id], onDelete: Restrict)
 
   @@index([userId])
   @@index([clientId])
@@ -167,16 +174,16 @@ model Contract {
 }
 
 model Category {
-  id          String         @id @default(uuid())
-  userId      String         @map("user_id")
-  name        String
-  type        FinanceType
-  colorHex    String?        @default("#4F46E5") @map("color_hex")
-  createdAt   DateTime       @default(now()) @map("created_at")
-  updatedAt   DateTime       @updatedAt @map("updated_at")
+  id        String      @id @default(uuid())
+  userId    String      @map("user_id")
+  name      String
+  type      FinanceType
+  colorHex  String?     @default("#4F46E5") @map("color_hex")
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
 
-  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  entries     FinanceEntry[]
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entries FinanceEntry[]
 
   @@unique([userId, name, type])
   @@map("categories")
@@ -187,18 +194,18 @@ model FinanceEntry {
   userId      String      @map("user_id")
   categoryId  String?     @map("category_id")
   description String
-  amount      Float
+  amount      Decimal     @db.Decimal(14, 2)
   type        FinanceType
   entryDate   DateTime    @default(now()) @map("entry_date")
   notes       String?
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
 
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  category    Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   @@index([userId])
-  @@index([entryDate])
+  @@index([userId, entryDate])
   @@map("finance_entries")
 }
 
@@ -210,7 +217,7 @@ model Notification {
   isRead    Boolean  @default(false) @map("is_read")
   createdAt DateTime @default(now()) @map("created_at")
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("notifications")
@@ -225,21 +232,24 @@ model File {
   sizeBytes Int      @default(0) @map("size_bytes")
   createdAt DateTime @default(now()) @map("created_at")
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("files")
 }
 
 model Setting {
-  id            String   @id @default(uuid())
-  userId        String   @unique @map("user_id")
-  themeMode     String   @default("system") @map("theme_mode")
-  language      String   @default("pt-BR")
-  emailNotify   Boolean  @default(true) @map("email_notify")
-  aiProvider    String   @default("mock") @map("ai_provider")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  id          String   @id @default(uuid())
+  userId      String   @unique @map("user_id")
+  themeMode   String   @default("system") @map("theme_mode")
+  language    String   @default("pt-BR")
+  emailNotify Boolean  @default(true) @map("email_notify")
+  aiProvider  String   @default("mock") @map("ai_provider")
+  aiConsentVersion String? @map("ai_consent_version")
+  aiConsentProvider String? @map("ai_consent_provider")
+  aiConsentAt DateTime? @map("ai_consent_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("settings")
 }
@@ -253,7 +263,7 @@ model AuditLog {
   metadata  Json?
   createdAt DateTime @default(now()) @map("created_at")
 
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@map("audit_logs")

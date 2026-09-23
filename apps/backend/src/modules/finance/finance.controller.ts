@@ -1,19 +1,33 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Param,
-  Query,
-  Delete,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, Delete, Put, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { FinanceService } from './finance.service';
-import { CreateFinanceEntryDto, CreateCategoryDto } from './dto/finance.dto';
+import { CreateFinanceEntryDto, CreateCategoryDto, UpdateFinanceEntryDto } from './dto/finance.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { FinanceType } from '@prisma/client';
+import { PaginationDto } from '../../common/dto/pagination.dto';
+import { Type } from 'class-transformer';
+import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
+
+class FinanceListQueryDto extends PaginationDto {
+  @IsOptional()
+  @IsEnum(FinanceType)
+  type?: FinanceType;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(12)
+  month?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(2000)
+  @Max(2100)
+  year?: number;
+}
 
 @ApiTags('Finance')
 @ApiBearerAuth()
@@ -33,18 +47,17 @@ export class FinanceController {
   @ApiQuery({ name: 'type', required: false, enum: FinanceType })
   @ApiQuery({ name: 'month', required: false, type: Number })
   @ApiQuery({ name: 'year', required: false, type: Number })
-  findAllEntries(
+  findAllEntries(@CurrentUser() user: any, @Query() query: FinanceListQueryDto) {
+    return this.financeService.findAllEntries(user.id, query.type, query.month, query.year, query);
+  }
+
+  @Put('entries/:id')
+  updateEntry(
     @CurrentUser() user: any,
-    @Query('type') type?: FinanceType,
-    @Query('month') month?: string,
-    @Query('year') year?: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateFinanceEntryDto,
   ) {
-    return this.financeService.findAllEntries(
-      user.id,
-      type,
-      month ? parseInt(month, 10) : undefined,
-      year ? parseInt(year, 10) : undefined,
-    );
+    return this.financeService.updateEntry(user.id, id, dto);
   }
 
   @Get('summary')

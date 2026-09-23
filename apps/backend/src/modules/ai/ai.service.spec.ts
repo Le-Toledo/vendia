@@ -1,14 +1,42 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { GeminiProvider } from './providers/gemini.provider';
+import { GroqProvider } from './providers/groq.provider';
+import { PRIVACY_VERSION } from '../app-info/privacy';
 import { AIService } from './ai.service';
 import { MockAIProvider } from './providers/mock.provider';
 import { OpenAIProvider } from './providers/openai.provider';
+import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../../common/prisma/prisma.service';
 
 describe('AIService', () => {
   let service: AIService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [AIService, MockAIProvider, OpenAIProvider],
+      providers: [
+        AIService,
+        GeminiProvider,
+        GroqProvider,
+        MockAIProvider,
+        OpenAIProvider,
+        {
+          provide: ConfigService,
+          useValue: { get: (_key: string, fallback?: string) => fallback ?? 'mock' },
+        },
+        {
+          provide: PrismaService,
+          useValue: {
+            client: { findFirst: jest.fn() },
+            setting: {
+              findUnique: jest.fn().mockResolvedValue({
+                aiConsentVersion: PRIVACY_VERSION,
+                aiConsentProvider: 'mock',
+                aiConsentAt: new Date(),
+              }),
+            },
+          },
+        },
+      ],
     }).compile();
 
     service = module.get<AIService>(AIService);
@@ -19,7 +47,7 @@ describe('AIService', () => {
   });
 
   it('should process chat message and return AIResponse', async () => {
-    const result = await service.processChatMessage({
+    const result = await service.processChatMessage('user-1', {
       message: 'Crie um orçamento de desenvolvimento de app no valor de R$ 3000',
     });
 
@@ -30,7 +58,7 @@ describe('AIService', () => {
   });
 
   it('should generate marketing copy for Instagram', async () => {
-    const result = await service.generateMarketingCopy({
+    const result = await service.generateMarketingCopy('user-1', {
       targetChannel: 'Instagram',
       productOrService: 'Consultoria Financeira MEI',
     });

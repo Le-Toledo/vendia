@@ -1,85 +1,173 @@
 import 'package:flutter/material.dart';
-import '../../../core/constants/app_colors.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/network/api_providers.dart';
 import '../../../core/widgets/custom_button.dart';
 import '../../../core/widgets/custom_text_field.dart';
 
-class ForgotPasswordScreen extends StatefulWidget {
+class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({super.key});
-
   @override
-  State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
+  ConsumerState<ForgotPasswordScreen> createState() =>
+      _ForgotPasswordScreenState();
 }
 
-class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
-  final _emailController = TextEditingController();
-  bool _sent = false;
+class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
+  final _form = GlobalKey<FormState>();
+  final _email = TextEditingController();
+  final _code = TextEditingController();
+  final _password = TextEditingController();
+  final _confirm = TextEditingController();
+  bool _requested = false;
+  bool _busy = false;
+  String? _message;
+  @override
+  void dispose() {
+    _email.dispose();
+    _code.dispose();
+    _password.dispose();
+    _confirm.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_busy || !_form.currentState!.validate()) return;
+    setState(() {
+      _busy = true;
+      _message = null;
+    });
+    final api = ref.read(apiClientProvider);
+    try {
+      if (!_requested) {
+        await api.dio.post(
+          '/auth/forgot-password',
+          data: {'email': _email.text.trim()},
+        );
+        if (!mounted) return;
+        setState(() {
+          _requested = true;
+          _message =
+              'Se houver uma conta com senha para este email, você receberá um código. Confira também o spam. O código vale por 15 minutos.';
+        });
+      } else {
+        await api.dio.post(
+          '/auth/reset-password',
+          data: {
+            'email': _email.text.trim(),
+            'token': _code.text.trim(),
+            'password': _password.text,
+          },
+        );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Senha atualizada. Entre com sua nova senha.'),
+          ),
+        );
+        Navigator.of(context).pop();
+      }
+    } catch (error) {
+      if (mounted) setState(() => _message = api.readableError(error).message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Recuperar Senha')),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Recuperar Senha')),
+    body: SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Form(
+        key: _form,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Esqueceu sua senha? 🔑',
+              'Recupere seu acesso',
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'Digite seu e-mail cadastrado e enviaremos um link seguro para redefinição.',
-              style: TextStyle(color: Colors.grey, fontSize: 14),
+            const SizedBox(height: 16),
+            CustomTextField(
+              label: 'E-mail',
+              hint: 'seu@email.com',
+              controller: _email,
+              enabled: !_busy && !_requested,
+              keyboardType: TextInputType.emailAddress,
+              validator: (v) => v == null || !v.trim().contains('@')
+                  ? 'Informe um e-mail válido'
+                  : null,
             ),
-            const SizedBox(height: 32),
-            if (!_sent) ...[
+            if (_requested) ...[
+              const SizedBox(height: 16),
               CustomTextField(
-                label: 'E-mail',
-                hint: 'seu@email.com',
-                controller: _emailController,
-                prefixIcon: Icons.email_outlined,
+                label: 'Código recebido por email',
+                hint: 'Cole o código completo',
+                controller: _code,
+                autocorrect: false,
+                enableSuggestions: false,
+                validator: (v) =>
+                    RegExp(r'^[a-f0-9]{48}$').hasMatch(v?.trim() ?? '')
+                    ? null
+                    : 'Cole o código completo recebido por email',
               ),
-              const SizedBox(height: 24),
-              CustomButton(
-                text: 'Enviar Instruções',
-                onPressed: () {
-                  setState(() => _sent = true);
-                },
+              const SizedBox(height: 16),
+              CustomTextField(
+                label: 'Nova senha',
+                hint: '10 caracteres, maiúscula, minúscula e número',
+                controller: _password,
+                obscureText: true,
+                autocorrect: false,
+                enableSuggestions: false,
+                validator: (v) =>
+                    v != null &&
+                        v.length >= 10 &&
+                        v.length <= 72 &&
+                        RegExp(r'[a-z]').hasMatch(v) &&
+                        RegExp(r'[A-Z]').hasMatch(v) &&
+                        RegExp(r'\d').hasMatch(v)
+                    ? null
+                    : 'Use de 10 a 72 caracteres, com maiúscula, minúscula e número',
               ),
-            ] else ...[
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppColors.income.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.income),
-                ),
-                child: const Column(
-                  children: [
-                    Icon(Icons.check_circle_outline,
-                        color: AppColors.income, size: 48),
-                    SizedBox(height: 12),
-                    Text(
-                      'E-mail Enviado com Sucesso!',
-                      style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.income),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Verifique sua caixa de entrada e siga as instruções para redefinir sua senha.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 14),
-                    ),
-                  ],
-                ),
+              const SizedBox(height: 16),
+              CustomTextField(
+                label: 'Confirmar nova senha',
+                controller: _confirm,
+                obscureText: true,
+                autocorrect: false,
+                enableSuggestions: false,
+                validator: (v) =>
+                    v == _password.text ? null : 'As senhas não coincidem',
               ),
             ],
+            if (_message != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Text(_message!),
+              ),
+            const SizedBox(height: 24),
+            CustomButton(
+              text: _requested
+                  ? 'Salvar nova senha'
+                  : 'Enviar código por email',
+              isLoading: _busy,
+              onPressed: _submit,
+            ),
+            if (_requested)
+              TextButton(
+                onPressed: _busy
+                    ? null
+                    : () => setState(() {
+                        _requested = false;
+                        _message = null;
+                        _code.clear();
+                        _password.clear();
+                        _confirm.clear();
+                      }),
+                child: const Text('Solicitar outro código ou corrigir email'),
+              ),
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
 }

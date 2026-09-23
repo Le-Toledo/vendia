@@ -1,82 +1,65 @@
-name: VendeAI CI/CD Pipeline
+name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
 
 jobs:
-  backend-test:
-    name: Backend CI (NestJS + Prisma)
+  backend:
     runs-on: ubuntu-latest
-
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: vendeai_test
+          POSTGRES_PASSWORD: vendeai_test
+          POSTGRES_DB: vendeai_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U vendeai_test -d vendeai_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://vendeai_test:vendeai_test@localhost:5432/vendeai_test?schema=public
+      JWT_SECRET: ci-access-secret-with-at-least-32-characters
+      JWT_REFRESH_SECRET: ci-refresh-secret-different-and-at-least-32-characters
+      AI_PROVIDER: mock
+      GOOGLE_AUTH_ENABLED: 'false'
+      CORS_ORIGINS: http://localhost:8080
+    defaults:
+      run:
+        working-directory: apps/backend
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'npm'
-          cache-dependency-path: 'apps/backend/package.json'
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/backend/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx prisma migrate deploy
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run build
+      - run: npm test -- --runInBand
+      - run: npm run test:e2e -- --runInBand
+      - run: npm audit --omit=dev --audit-level=high
 
-      - name: Install Backend Dependencies
-        run: |
-          cd apps/backend
-          npm ci || npm install
-
-      - name: Generate Prisma Client
-        run: |
-          cd apps/backend
-          npx prisma generate
-
-      - name: Build Backend
-        run: |
-          cd apps/backend
-          npm run build
-
-      - name: Run Backend Unit Tests
-        run: |
-          cd apps/backend
-          npm run test -- --passWithNoTests
-
-  mobile-test:
-    name: Mobile CI (Flutter)
+  mobile:
     runs-on: ubuntu-latest
-
+    defaults:
+      run:
+        working-directory: apps/mobile
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
-
-      - name: Setup Java
-        uses: actions/setup-java@v3
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
         with:
-          distribution: 'zulu'
-          java-version: '17'
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.22.x'
-          channel: 'stable'
+          flutter-version: 3.44.8
+          channel: stable
           cache: true
-
-      - name: Verify Flutter Installation
-        run: flutter --version
-
-      - name: Install Mobile Dependencies
-        run: |
-          cd apps/mobile
-          flutter pub get
-
-      - name: Run Flutter Static Analysis
-        run: |
-          cd apps/mobile
-          flutter analyze --no-fatal-infos
-
-      - name: Run Flutter Tests
-        run: |
-          cd apps/mobile
-          flutter test
+      - run: flutter pub get
+      - run: dart format --output=none --set-exit-if-changed lib test
+      - run: flutter analyze
+      - run: flutter test --coverage

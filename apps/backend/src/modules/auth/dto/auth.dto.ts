@@ -1,5 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  MinLength,
+  MaxLength,
+} from 'class-validator';
 
 export class RegisterDto {
   @ApiProperty({ example: 'João Silva', description: 'Nome completo do usuário' })
@@ -13,7 +21,10 @@ export class RegisterDto {
 
   @ApiProperty({ example: 'SenhaForte123!', description: 'Senha de acesso' })
   @IsString()
-  @MinLength(6, { message: 'A senha deve conter no mínimo 6 caracteres' })
+  @MinLength(10, { message: 'A senha deve conter no mínimo 10 caracteres' })
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/, {
+    message: 'A senha deve conter letra maiúscula, minúscula e número',
+  })
   password: string;
 
   @ApiProperty({ example: 'Silva Soluções MEI', required: false })
@@ -45,4 +56,25 @@ export class GoogleAuthDto {
   @IsString()
   @IsNotEmpty({ message: 'O idToken do Google é obrigatório' })
   idToken: string;
+}
+
+export class ForgotPasswordDto {
+  @IsEmail()
+  @MaxLength(254)
+  email: string;
+}
+export class ResetPasswordDto extends ForgotPasswordDto {
+  @IsString()
+  @Matches(/^[a-f0-9]{48}$/)
+  token: string;
+  @IsString()
+  @MinLength(10)
+  @MaxLength(72)
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/)
+  password: string;
+}
+
+export class AppleAuthDto {
+  @IsString() @IsNotEmpty() @MaxLength(4096) authorizationCode: string;
+  @IsString() @Matches(/^[a-f0-9]{64}$/) nonce: string;
 }

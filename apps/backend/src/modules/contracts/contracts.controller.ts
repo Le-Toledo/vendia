@@ -1,19 +1,18 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Param,
-  Query,
-  Put,
-  Delete,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, Put, Delete, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { ContractsService } from './contracts.service';
 import { CreateContractDto, UpdateContractDto } from './dto/contract.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { PaginationDto } from '../../common/dto/pagination.dto';
+import { IsEnum, IsOptional } from 'class-validator';
+import { ContractStatus } from '@prisma/client';
+
+class ContractListQueryDto extends PaginationDto {
+  @IsOptional()
+  @IsEnum(ContractStatus)
+  status?: ContractStatus;
+}
 
 @ApiTags('Contracts')
 @ApiBearerAuth()
@@ -30,9 +29,13 @@ export class ContractsController {
 
   @Get()
   @ApiOperation({ summary: 'Listar contratos do usuário com filtro por status' })
-  @ApiQuery({ name: 'status', required: false, enum: ['DRAFT', 'ACTIVE', 'COMPLETED', 'CANCELLED'] })
-  findAll(@CurrentUser() user: any, @Query('status') status?: string) {
-    return this.contractsService.findAll(user.id, status);
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['DRAFT', 'ACTIVE', 'COMPLETED', 'CANCELLED'],
+  })
+  findAll(@CurrentUser() user: any, @Query() query: ContractListQueryDto) {
+    return this.contractsService.findAll(user.id, query.status, query);
   }
 
   @Get(':id')
@@ -43,11 +46,7 @@ export class ContractsController {
 
   @Put(':id')
   @ApiOperation({ summary: 'Atualizar contrato' })
-  update(
-    @CurrentUser() user: any,
-    @Param('id') id: string,
-    @Body() dto: UpdateContractDto,
-  ) {
+  update(@CurrentUser() user: any, @Param('id') id: string, @Body() dto: UpdateContractDto) {
     return this.contractsService.update(user.id, id, dto);
   }
 

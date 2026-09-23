@@ -1,19 +1,17 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Param,
-  Query,
-  Put,
-  Delete,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, Put, Delete, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { ClientsService } from './clients.service';
 import { CreateClientDto, UpdateClientDto } from './dto/client.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { PaginationDto } from '../../common/dto/pagination.dto';
+import { IsOptional, IsString } from 'class-validator';
+
+class ClientListQueryDto extends PaginationDto {
+  @IsOptional()
+  @IsString()
+  search?: string;
+}
 
 @ApiTags('Clients')
 @ApiBearerAuth()
@@ -30,9 +28,13 @@ export class ClientsController {
 
   @Get()
   @ApiOperation({ summary: 'Listar todos os clientes com filtro de busca' })
-  @ApiQuery({ name: 'search', required: false, description: 'Termo de busca por nome/empresa/cpf/cnpj/email' })
-  findAll(@CurrentUser() user: any, @Query('search') search?: string) {
-    return this.clientsService.findAll(user.id, search);
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Termo de busca por nome/empresa/cpf/cnpj/email',
+  })
+  findAll(@CurrentUser() user: any, @Query() query: ClientListQueryDto) {
+    return this.clientsService.findAll(user.id, query.search, query);
   }
 
   @Get(':id')
@@ -43,11 +45,7 @@ export class ClientsController {
 
   @Put(':id')
   @ApiOperation({ summary: 'Atualizar informações de um cliente' })
-  update(
-    @CurrentUser() user: any,
-    @Param('id') id: string,
-    @Body() dto: UpdateClientDto,
-  ) {
+  update(@CurrentUser() user: any, @Param('id') id: string, @Body() dto: UpdateClientDto) {
     return this.clientsService.update(user.id, id, dto);
   }
 

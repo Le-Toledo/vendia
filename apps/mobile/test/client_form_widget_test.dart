@@ -3,10 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:vendeai_mobile/features/clients/presentation/client_form_screen.dart';
 
 void main() {
-  testWidgets('ClientForm builds and accepts input without overflow', (WidgetTester tester) async {
-    await tester.pumpWidget(MaterialApp(
-      home: ClientFormScreen(),
-    ));
+  testWidgets('ClientForm builds and accepts input without overflow', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(const MaterialApp(home: ClientFormScreen()));
 
     await tester.pumpAndSettle();
 

@@ -4,11 +4,15 @@ import '../constants/app_constants.dart';
 class SecureStorageService {
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
-  Future<void> saveTokens(
-      {required String accessToken, required String refreshToken}) async {
+  Future<void> saveTokens({
+    required String accessToken,
+    required String refreshToken,
+  }) async {
     await _storage.write(key: AppConstants.keyAccessToken, value: accessToken);
     await _storage.write(
-        key: AppConstants.keyRefreshToken, value: refreshToken);
+      key: AppConstants.keyRefreshToken,
+      value: refreshToken,
+    );
   }
 
   Future<String?> getAccessToken() async {

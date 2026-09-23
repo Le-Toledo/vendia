@@ -2,17 +2,20 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateFinanceEntryDto, UpdateFinanceEntryDto, CreateCategoryDto } from './dto/finance.dto';
 import { FinanceType } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { PaginationDto, paginationMeta } from '../../common/dto/pagination.dto';
 
 @Injectable()
 export class FinanceService {
   constructor(private readonly prisma: PrismaService) {}
 
   async createEntry(userId: string, dto: CreateFinanceEntryDto) {
+    await this.assertCategoryOwnership(userId, dto.categoryId);
     return this.prisma.financeEntry.create({
       data: {
         userId,
         description: dto.description,
-        amount: dto.amount,
+        amount: new Prisma.Decimal(dto.amount),
         type: dto.type,
         categoryId: dto.categoryId,
         entryDate: dto.entryDate ? new Date(dto.entryDate) : new Date(),
@@ -24,7 +27,13 @@ export class FinanceService {
     });
   }
 
-  async findAllEntries(userId: string, type?: FinanceType, month?: number, year?: number) {
+  async findAllEntries(
+    userId: string,
+    type: FinanceType | undefined,
+    month: number | undefined,
+    year: number | undefined,
+    { page, pageSize }: PaginationDto,
+  ) {
     const where: any = { userId };
     if (type) {
       where.type = type;
@@ -39,40 +48,43 @@ export class FinanceService {
       };
     }
 
-    return this.prisma.financeEntry.findMany({
-      where,
-      orderBy: { entryDate: 'desc' },
-      include: { category: true },
-    });
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.financeEntry.findMany({
+        where,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { entryDate: 'desc' },
+        include: { category: true },
+      }),
+      this.prisma.financeEntry.count({ where }),
+    ]);
+    return paginationMeta(items, total, page, pageSize);
   }
 
   async getSummary(userId: string) {
-    const entries = await this.prisma.financeEntry.findMany({
-      where: { userId },
-    });
-
-    let totalIncome = 0;
-    let totalExpense = 0;
-
-    entries.forEach((e) => {
-      if (e.type === FinanceType.INCOME) {
-        totalIncome += e.amount;
-      } else {
-        totalExpense += e.amount;
-      }
-    });
-
-    const balance = totalIncome - totalExpense;
-    const clientCount = await this.prisma.client.count({ where: { userId } });
-    const quoteCount = await this.prisma.quote.count({ where: { userId } });
-    const contractCount = await this.prisma.contract.count({ where: { userId } });
-
-    const recentActivities = await this.prisma.financeEntry.findMany({
-      where: { userId },
-      orderBy: { entryDate: 'desc' },
-      take: 5,
-      include: { category: true },
-    });
+    const [income, expense, clientCount, quoteCount, contractCount, recentActivities] =
+      await this.prisma.$transaction([
+        this.prisma.financeEntry.aggregate({
+          where: { userId, type: FinanceType.INCOME },
+          _sum: { amount: true },
+        }),
+        this.prisma.financeEntry.aggregate({
+          where: { userId, type: FinanceType.EXPENSE },
+          _sum: { amount: true },
+        }),
+        this.prisma.client.count({ where: { userId } }),
+        this.prisma.quote.count({ where: { userId } }),
+        this.prisma.contract.count({ where: { userId } }),
+        this.prisma.financeEntry.findMany({
+          where: { userId },
+          orderBy: { entryDate: 'desc' },
+          take: 5,
+          include: { category: true },
+        }),
+      ]);
+    const totalIncome = income._sum.amount ?? new Prisma.Decimal(0);
+    const totalExpense = expense._sum.amount ?? new Prisma.Decimal(0);
+    const balance = totalIncome.sub(totalExpense);
 
     return {
       financial: {
@@ -117,5 +129,35 @@ export class FinanceService {
     if (!entry) throw new NotFoundException('Lançamento não encontrado');
 
     return this.prisma.financeEntry.delete({ where: { id } });
+  }
+
+  async updateEntry(userId: string, id: string, dto: UpdateFinanceEntryDto) {
+    const entry = await this.prisma.financeEntry.findFirst({
+      where: { id, userId },
+      select: { id: true },
+    });
+    if (!entry) throw new NotFoundException('Lançamento não encontrado');
+    await this.assertCategoryOwnership(userId, dto.categoryId);
+    return this.prisma.financeEntry.update({
+      where: { id },
+      data: {
+        description: dto.description,
+        amount: new Prisma.Decimal(dto.amount),
+        type: dto.type,
+        categoryId: dto.categoryId,
+        entryDate: dto.entryDate ? new Date(dto.entryDate) : undefined,
+        notes: dto.notes,
+      },
+      include: { category: true },
+    });
+  }
+
+  private async assertCategoryOwnership(userId: string, categoryId?: string) {
+    if (!categoryId) return;
+    const category = await this.prisma.category.findFirst({
+      where: { id: categoryId, userId },
+      select: { id: true },
+    });
+    if (!category) throw new NotFoundException('Categoria não encontrada');
   }
 }

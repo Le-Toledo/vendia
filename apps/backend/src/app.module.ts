@@ -1,5 +1,5 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD, APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 
@@ -14,16 +14,27 @@ import { QuotesModule } from './modules/quotes/quotes.module';
 import { ContractsModule } from './modules/contracts/contracts.module';
 import { FinanceModule } from './modules/finance/finance.module';
 import { AIModule } from './modules/ai/ai.module';
+import { validateEnvironment } from './config/env.validation';
+import { AppInfoController } from './modules/app-info/app-info.controller';
+import { HealthModule } from './modules/health/health.module';
+import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
-    ThrottlerModule.forRoot([
-      {
-        ttl: parseInt(process.env.THROTTLE_TTL || '60', 10),
-        limit: parseInt(process.env.THROTTLE_LIMIT || '100', 10),
-      },
-    ]),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: ['.env', '../../.env'],
+      validate: validateEnvironment,
+    }),
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => [
+        {
+          ttl: config.get<number>('THROTTLE_TTL', 60_000),
+          limit: config.get<number>('THROTTLE_LIMIT', 100),
+        },
+      ],
+    }),
     AuthModule,
     UsersModule,
     ClientsModule,
@@ -31,7 +42,9 @@ import { AIModule } from './modules/ai/ai.module';
     ContractsModule,
     FinanceModule,
     AIModule,
+    HealthModule,
   ],
+  controllers: [AppInfoController],
   providers: [
     PrismaService,
     {
@@ -48,4 +61,8 @@ import { AIModule } from './modules/ai/ai.module';
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestIdMiddleware).forRoutes('*');
+  }
+}

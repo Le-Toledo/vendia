@@ -1,0 +1,78 @@
+name: vendeai-production
+services:
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vendeai
+      POSTGRES_DB: vendeai
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Configure a strong DB_PASSWORD}
+    volumes:
+      - production_database:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U vendeai -d vendeai']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  migrate:
+    build:
+      context: ./apps/backend
+      target: builder
+    command: ['./node_modules/.bin/prisma', migrate, deploy]
+    environment:
+      DATABASE_URL: postgresql://vendeai:${DB_PASSWORD:?Configure DB_PASSWORD}@postgres:5432/vendeai?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+  backend:
+    build: ./apps/backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      API_PREFIX: api/v1
+      TRUST_PROXY: 'true'
+      DATABASE_URL: postgresql://vendeai:${DB_PASSWORD:?Configure DB_PASSWORD}@postgres:5432/vendeai?schema=public
+      JWT_SECRET: ${JWT_SECRET:?Configure JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Configure a different JWT_REFRESH_SECRET}
+      AI_PROVIDER: ${AI_PROVIDER:?Select a real AI provider}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
+      APPLE_AUTH_ENABLED: ${APPLE_AUTH_ENABLED:-false}
+      APPLE_CLIENT_ID: ${APPLE_CLIENT_ID:-}
+      APPLE_TEAM_ID: ${APPLE_TEAM_ID:-}
+      APPLE_KEY_ID: ${APPLE_KEY_ID:-}
+      APPLE_PRIVATE_KEY: ${APPLE_PRIVATE_KEY:-}
+      APPLE_TOKEN_ENCRYPTION_KEY: ${APPLE_TOKEN_ENCRYPTION_KEY:-}
+      GOOGLE_AUTH_ENABLED: ${GOOGLE_AUTH_ENABLED:-false}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      PRIVACY_CONTROLLER_NAME: ${PRIVACY_CONTROLLER_NAME:-VendeAI}
+      SUPPORT_EMAIL: vendeai.suport@gmail.com
+      RESEND_API_KEY: ${RESEND_API_KEY:?Configure email delivery}
+      MAIL_FROM: ${MAIL_FROM:?Configure a verified sender}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Configure your public API domain}
+    ports: ['80:80', '443:443', '443:443/udp']
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+volumes:
+  production_database:
+  caddy_data:
+  caddy_config:

@@ -4,7 +4,8 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.2.0 <4.0.0'
+  sdk: '>=3.10.3 <4.0.0'
+  flutter: '>=3.38.4'
 
 dependencies:
   flutter:
@@ -29,6 +30,11 @@ dependencies:
   fl_chart: ^0.66.0
   intl: ^0.20.2
   cupertino_icons: ^1.0.6
+  google_sign_in: ^7.2.0
+  sign_in_with_apple: 7.0.1
+  crypto: ^3.0.7
+  path_provider: ^2.1.6
+  share_plus: ^12.0.2
 
 dev_dependencies:
   flutter_test:

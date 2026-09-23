@@ -35,7 +35,10 @@ export class GenerateContractAiDto {
   @IsNotEmpty()
   clientId: string;
 
-  @ApiProperty({ example: 'Prestação de serviço de desenvolvimento de software mobile no valor de R$ 5.000 com prazo de 30 dias.' })
+  @ApiProperty({
+    example:
+      'Prestação de serviço de desenvolvimento de software mobile no valor de R$ 5.000 com prazo de 30 dias.',
+  })
   @IsString()
   @IsNotEmpty()
   promptInstructions: string;

@@ -16,6 +16,15 @@ import { QuotesService } from './quotes.service';
 import { CreateQuoteDto, UpdateQuoteDto } from './dto/quote.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { PaginationDto } from '../../common/dto/pagination.dto';
+import { IsEnum, IsOptional } from 'class-validator';
+import { QuoteStatus } from '@prisma/client';
+
+class QuoteListQueryDto extends PaginationDto {
+  @IsOptional()
+  @IsEnum(QuoteStatus)
+  status?: QuoteStatus;
+}
 
 @ApiTags('Quotes')
 @ApiBearerAuth()
@@ -33,8 +42,8 @@ export class QuotesController {
   @Get()
   @ApiOperation({ summary: 'Listar orçamentos do usuário com filtro por status' })
   @ApiQuery({ name: 'status', required: false, enum: ['DRAFT', 'SENT', 'APPROVED', 'REJECTED'] })
-  findAll(@CurrentUser() user: any, @Query('status') status?: string) {
-    return this.quotesService.findAll(user.id, status);
+  findAll(@CurrentUser() user: any, @Query() query: QuoteListQueryDto) {
+    return this.quotesService.findAll(user.id, query.status, query);
   }
 
   @Get(':id')
@@ -51,11 +60,7 @@ export class QuotesController {
 
   @Get(':id/pdf')
   @ApiOperation({ summary: 'Gerar e baixar o PDF do orçamento' })
-  async downloadPdf(
-    @CurrentUser() user: any,
-    @Param('id') id: string,
-    @Res() res: Response,
-  ) {
+  async downloadPdf(@CurrentUser() user: any, @Param('id') id: string, @Res() res: Response) {
     const pdfBuffer = await this.quotesService.generatePdf(user.id, id);
     res.set({
       'Content-Type': 'application/pdf',
@@ -67,11 +72,7 @@ export class QuotesController {
 
   @Put(':id')
   @ApiOperation({ summary: 'Atualizar orçamento' })
-  update(
-    @CurrentUser() user: any,
-    @Param('id') id: string,
-    @Body() dto: UpdateQuoteDto,
-  ) {
+  update(@CurrentUser() user: any, @Param('id') id: string, @Body() dto: UpdateQuoteDto) {
     return this.quotesService.update(user.id, id, dto);
   }
 

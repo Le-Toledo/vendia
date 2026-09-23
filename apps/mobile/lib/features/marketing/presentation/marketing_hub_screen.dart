@@ -1,23 +1,34 @@
 import 'package:flutter/material.dart';
+import '../../privacy/presentation/ai_consent.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/custom_button.dart';
 import '../../../core/widgets/custom_text_field.dart';
 import '../../../core/widgets/glass_card.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/network/api_providers.dart';
+import 'package:flutter/services.dart';
 
-class MarketingHubScreen extends StatefulWidget {
+class MarketingHubScreen extends ConsumerStatefulWidget {
   const MarketingHubScreen({super.key});
 
   @override
-  State<MarketingHubScreen> createState() => _MarketingHubScreenState();
+  ConsumerState<MarketingHubScreen> createState() => _MarketingHubScreenState();
 }
 
-class _MarketingHubScreenState extends State<MarketingHubScreen> {
+class _MarketingHubScreenState extends ConsumerState<MarketingHubScreen> {
   String _selectedChannel = 'Instagram';
   final _productController = TextEditingController();
   final _detailsController = TextEditingController();
 
   bool _isGenerating = false;
   String? _generatedCopy;
+
+  @override
+  void dispose() {
+    _productController.dispose();
+    _detailsController.dispose();
+    super.dispose();
+  }
 
   final List<String> _channels = [
     'Instagram',
@@ -30,6 +41,7 @@ class _MarketingHubScreenState extends State<MarketingHubScreen> {
   ];
 
   void _onGenerate() async {
+    if (_isGenerating) return;
     if (_productController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Informe o nome do produto ou serviço')),
@@ -42,37 +54,48 @@ class _MarketingHubScreenState extends State<MarketingHubScreen> {
       _generatedCopy = null;
     });
 
-    await Future.delayed(const Duration(milliseconds: 1200));
-
-    setState(() {
-      _isGenerating = false;
-      _generatedCopy = '''
-🚀 **ALERTA DE OFERTA EXCLUSIVA!**
-
-Diga adeus às dores de cabeça com **${_productController.text}**! 
-
-Nossa solução foi desenvolvida especialmente para autônomos e pequenos empreendedores que buscam máxima qualidade, rapidez e excelente custo-benefício.
-
-✨ **Por que escolher nossa solução?**
-- Envio Rápido e Atendimento Personalizado
-- Garantia de Satisfação e Suporte Dedicado
-- Condições Especiais de Pagamento via PIX em até 12x
-
-📦 *Poucas unidades disponíveis nesta condição!*
-
-👉 **Clique no link da Bio e solicite seu orçamento agora mesmo pelo WhatsApp!**
-
-#${_selectedChannel.replaceAll(' ', '')} #${_productController.text.replaceAll(' ', '')} #VendeAI #OfertaImperdivel
-''';
-    });
+    final allowed = await ensureAiConsent(context, ref);
+    if (!mounted) return;
+    if (!allowed) {
+      setState(() => _isGenerating = false);
+      return;
+    }
+    final api = ref.read(apiClientProvider);
+    try {
+      final response = await api.dio.post(
+        '/ai/generate-copy',
+        data: {
+          'targetChannel': _selectedChannel,
+          'productOrService': _productController.text.trim(),
+          if (_detailsController.text.trim().isNotEmpty)
+            'details': _detailsController.text.trim(),
+        },
+      );
+      final data = api.unwrap<Map<String, dynamic>>(response);
+      if (mounted) {
+        setState(() {
+          _isGenerating = false;
+          _generatedCopy = data['content'] as String;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => _isGenerating = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              ref.read(apiClientProvider).readableError(error).message,
+            ),
+          ),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Marketing & E-commerce Hub'),
-      ),
+      appBar: AppBar(title: const Text('Marketing & E-commerce Hub')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -90,8 +113,10 @@ Nossa solução foi desenvolvida especialmente para autônomos e pequenos empree
             const SizedBox(height: 20),
 
             // Channel Selection Chips
-            const Text('Selecione o Canal / Plataforma:',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            const Text(
+              'Selecione o Canal / Plataforma:',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -103,8 +128,9 @@ Nossa solução foi desenvolvida especialmente para autônomos e pequenos empree
                   selected: isSelected,
                   selectedColor: AppColors.primary,
                   labelStyle: TextStyle(
-                      color: isSelected ? Colors.white : null,
-                      fontWeight: FontWeight.bold),
+                    color: isSelected ? Colors.white : null,
+                    fontWeight: FontWeight.bold,
+                  ),
                   onSelected: (val) {
                     if (val) setState(() => _selectedChannel = channel);
                   },
@@ -139,18 +165,28 @@ Nossa solução foi desenvolvida especialmente para autônomos e pequenos empree
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Expanded(
-                    child: Text('Resultado Gerado:',
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
+                    child: Text(
+                      'Resultado Gerado:',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   TextButton.icon(
-                    onPressed: () {
+                    onPressed: () async {
+                      await Clipboard.setData(
+                        ClipboardData(text: _generatedCopy!),
+                      );
+                      if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                            content: Text(
-                                'Texto copiado para a área de transferência!')),
+                          content: Text(
+                            'Texto copiado para a área de transferência!',
+                          ),
+                        ),
                       );
                     },
                     icon: const Icon(Icons.copy, size: 16),

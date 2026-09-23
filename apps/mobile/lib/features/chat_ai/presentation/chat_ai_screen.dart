@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
+import '../../privacy/presentation/ai_consent.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/widgets/glass_card.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/network/api_providers.dart';
 
-class ChatAiScreen extends StatefulWidget {
+class ChatAiScreen extends ConsumerStatefulWidget {
   const ChatAiScreen({super.key});
 
   @override
-  State<ChatAiScreen> createState() => _ChatAiScreenState();
+  ConsumerState<ChatAiScreen> createState() => _ChatAiScreenState();
 }
 
-class _ChatAiScreenState extends State<ChatAiScreen> {
+class _ChatAiScreenState extends ConsumerState<ChatAiScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
@@ -23,34 +26,40 @@ class _ChatAiScreenState extends State<ChatAiScreen> {
 
   bool _isTyping = false;
 
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   void _sendMessage(String text) async {
-    if (text.trim().isEmpty) return;
+    if (_isTyping || text.trim().isEmpty) return;
+    setState(() => _isTyping = true);
+    final allowed = await ensureAiConsent(context, ref);
+    if (!mounted) return;
+    if (!allowed) {
+      setState(() => _isTyping = false);
+      return;
+    }
+    final api = ref.read(apiClientProvider);
 
     setState(() {
       _messages.add({'sender': 'user', 'text': text});
       _isTyping = true;
-      _messageController.clear();
+      if (_messageController.text == text) _messageController.clear();
     });
 
     _scrollToBottom();
 
-    await Future.delayed(const Duration(milliseconds: 1000));
-
-    final lower = text.toLowerCase();
-    String responseText =
-        'Analisei seu pedido: "$text". Gostaria que eu salvasse esta ação diretamente nos seus módulos do VendeAI?';
-
-    if (lower.contains('orçamento') || lower.contains('orcamento')) {
+    String responseText;
+    try {
+      final response = await api.dio.post('/ai/chat', data: {'message': text});
+      final data = api.unwrap<Map<String, dynamic>>(response);
+      responseText = data['content'] as String;
+    } catch (error) {
       responseText =
-          '📋 **Orçamento Gerado com Sucesso!**\n\n**Cliente:** Empresa Exemplo Ltda\n1. Serviço de TI: R\$ 2.500,00\n2. Suporte Técnico: R\$ 500,00\n\n**Total:** R\$ 3.000,00\n\n*Clique no botão abaixo para gerar o PDF ou enviar por WhatsApp!*';
-    } else if (lower.contains('contrato')) {
-      responseText =
-          '📜 **Minuta de Contrato Gerada por IA:**\n\n"Pelo presente instrumento, o CONTRATADO compromete-se a fornecer os serviços acordados via orçamento no valor de R\$ 3.000,00 em até 30 dias..."';
-    } else if (lower.contains('cobrança') ||
-        lower.contains('cobranca') ||
-        lower.contains('whatsapp')) {
-      responseText =
-          '💬 *Mensagem para WhatsApp:*\n\n"Olá! Tudo bem? Passando para avisar que sua fatura vence em breve. Se precisar do código PIX, estou à disposição! 😊"';
+          'Não foi possível obter uma resposta: ${api.readableError(error)}';
     }
 
     if (mounted) {
@@ -64,7 +73,7 @@ class _ChatAiScreenState extends State<ChatAiScreen> {
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
+      if (mounted && _scrollController.hasClients) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
           duration: const Duration(milliseconds: 300),
@@ -86,18 +95,24 @@ class _ChatAiScreenState extends State<ChatAiScreen> {
                 color: AppColors.primary.withValues(alpha: 0.2),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.auto_awesome,
-                  color: AppColors.primary, size: 20),
+              child: const Icon(
+                Icons.auto_awesome,
+                color: AppColors.primary,
+                size: 20,
+              ),
             ),
             const SizedBox(width: 10),
             const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Chat IA VendeAI',
-                    style:
-                        TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                Text('Online • Provedor AIProvider',
-                    style: TextStyle(fontSize: 11, color: AppColors.income)),
+                Text(
+                  'Chat IA VendeAI',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  'Assistente de negócios',
+                  style: TextStyle(fontSize: 11, color: AppColors.income),
+                ),
               ],
             ),
           ],
@@ -134,12 +149,14 @@ class _ChatAiScreenState extends State<ChatAiScreen> {
                 final isUser = msg['sender'] == 'user';
 
                 return Align(
-                  alignment:
-                      isUser ? Alignment.centerRight : Alignment.centerLeft,
+                  alignment: isUser
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 12),
                     constraints: BoxConstraints(
-                        maxWidth: MediaQuery.of(context).size.width * 0.8),
+                      maxWidth: MediaQuery.of(context).size.width * 0.8,
+                    ),
                     child: GlassCard(
                       padding: const EdgeInsets.all(14),
                       child: SelectableText(
@@ -169,8 +186,10 @@ class _ChatAiScreenState extends State<ChatAiScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                   SizedBox(width: 8),
-                  Text('VendeAI está digitando...',
-                      style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  Text(
+                    'VendeAI está digitando...',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
                 ],
               ),
             ),
@@ -182,8 +201,9 @@ class _ChatAiScreenState extends State<ChatAiScreen> {
               color: Theme.of(context).brightness == Brightness.dark
                   ? AppColors.darkSurface
                   : AppColors.lightSurface,
-              border:
-                  const Border(top: BorderSide(color: Colors.grey, width: 0.2)),
+              border: const Border(
+                top: BorderSide(color: Colors.grey, width: 0.2),
+              ),
             ),
             child: Row(
               children: [
@@ -200,9 +220,13 @@ class _ChatAiScreenState extends State<ChatAiScreen> {
                   ),
                 ),
                 IconButton(
-                  icon:
-                      const Icon(Icons.send_rounded, color: AppColors.primary),
-                  onPressed: () => _sendMessage(_messageController.text),
+                  icon: const Icon(
+                    Icons.send_rounded,
+                    color: AppColors.primary,
+                  ),
+                  onPressed: _isTyping
+                      ? null
+                      : () => _sendMessage(_messageController.text),
                 ),
               ],
             ),
@@ -217,7 +241,7 @@ class _ChatAiScreenState extends State<ChatAiScreen> {
       padding: const EdgeInsets.only(right: 8.0),
       child: ActionChip(
         label: Text(text, style: const TextStyle(fontSize: 12)),
-        onPressed: () => _sendMessage(text),
+        onPressed: _isTyping ? null : () => _sendMessage(text),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
     );

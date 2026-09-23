@@ -1,239 +1,315 @@
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/data/business_providers.dart';
 import '../../../core/utils/formatters.dart';
-import '../../../core/widgets/glass_card.dart';
-import '../../../core/widgets/kpi_card.dart';
 
-class FinanceScreen extends StatefulWidget {
+class FinanceScreen extends ConsumerWidget {
   const FinanceScreen({super.key});
 
+  Future<void> _entryForm(
+    BuildContext context,
+    WidgetRef ref, {
+    Map<String, dynamic>? entry,
+  }) async {
+    final editing = entry != null;
+
+    final description = TextEditingController(
+      text: editing ? entry['description']?.toString() ?? '' : '',
+    );
+
+    final amount = TextEditingController(
+      text: editing ? entry['amount']?.toString() ?? '' : '',
+    );
+
+    var type = editing ? entry['type']?.toString() ?? 'INCOME' : 'INCOME';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (_, setDialogState) => AlertDialog(
+          title: Text(editing ? 'Editar lançamento' : 'Novo lançamento'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: description,
+                decoration: const InputDecoration(labelText: 'Descrição'),
+              ),
+              TextField(
+                controller: amount,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(labelText: 'Valor'),
+              ),
+              DropdownButton<String>(
+                value: type,
+                isExpanded: true,
+                items: const [
+                  DropdownMenuItem(value: 'INCOME', child: Text('Receita')),
+                  DropdownMenuItem(value: 'EXPENSE', child: Text('Despesa')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    setDialogState(() => type = value);
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(editing ? 'Salvar alterações' : 'Salvar'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true) {
+      description.dispose();
+      amount.dispose();
+      return;
+    }
+
+    final parsedAmount = double.tryParse(
+      amount.text.trim().replaceAll(',', '.'),
+    );
+
+    if (description.text.trim().isEmpty ||
+        parsedAmount == null ||
+        parsedAmount <= 0) {
+      description.dispose();
+      amount.dispose();
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Informe uma descrição e um valor válido.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      await ref.read(businessRepositoryProvider).save('/finance/entries', {
+        'description': description.text.trim(),
+        'amount': parsedAmount,
+        'type': type,
+      }, id: editing ? entry['id']?.toString() : null);
+
+      ref.invalidate(financeEntriesProvider);
+      ref.invalidate(dashboardProvider);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              editing
+                  ? 'Lançamento atualizado com sucesso.'
+                  : 'Lançamento criado com sucesso.',
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      description.dispose();
+      amount.dispose();
+    }
+  }
+
+  Future<bool> _confirmDelete(BuildContext context) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Excluir lançamento?'),
+            content: const Text('Essa ação não poderá ser desfeita.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Excluir'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  Future<void> _deleteEntry(
+    BuildContext context,
+    WidgetRef ref,
+    Map<String, dynamic> entry,
+  ) async {
+    final confirmed = await _confirmDelete(context);
+    if (!confirmed) return;
+
+    try {
+      await ref
+          .read(businessRepositoryProvider)
+          .delete('/finance/entries/${entry['id']}');
+
+      ref.invalidate(financeEntriesProvider);
+      ref.invalidate(dashboardProvider);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Lançamento excluído com sucesso.')),
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    }
+  }
+
   @override
-  State<FinanceScreen> createState() => _FinanceScreenState();
-}
-
-class _FinanceScreenState extends State<FinanceScreen> {
-  String _selectedFilter = 'TODOS';
-
-  final List<Map<String, dynamic>> _entries = [
-    {
-      'description': 'Desenvolvimento de App Mobile',
-      'amount': 4000.0,
-      'type': 'INCOME',
-      'category': 'Vendas de Serviços',
-      'date': '02/08/2026',
-    },
-    {
-      'description': 'Infraestrutura Cloud & Servidores',
-      'amount': 250.0,
-      'type': 'EXPENSE',
-      'category': 'Software & Ferramentas',
-      'date': '01/08/2026',
-    },
-    {
-      'description': 'Consultoria de Tecnologia',
-      'amount': 3500.0,
-      'type': 'INCOME',
-      'category': 'Consultoria',
-      'date': '28/07/2026',
-    },
-    {
-      'description': 'Anúncios Instagram e Meta Ads',
-      'amount': 400.0,
-      'type': 'EXPENSE',
-      'category': 'Marketing & Anúncios',
-      'date': '25/07/2026',
-    },
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final filtered = _entries.where((e) {
-      if (_selectedFilter == 'RECEITAS') return e['type'] == 'INCOME';
-      if (_selectedFilter == 'DESPESAS') return e['type'] == 'EXPENSE';
-      return true;
-    }).toList();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final entries = ref.watch(financeEntriesProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Gestão Financeira'),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // KPI Summary Row
-            Row(
-              children: [
-                Expanded(
-                  child: KpiCard(
-                    title: 'Entradas',
-                    value: Formatters.currency(7500.0),
-                    icon: Icons.arrow_downward,
-                    iconColor: AppColors.income,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: KpiCard(
-                    title: 'Saídas',
-                    value: Formatters.currency(650.0),
-                    icon: Icons.arrow_upward,
-                    iconColor: AppColors.expense,
-                  ),
-                ),
-              ],
+      appBar: AppBar(title: const Text('Finanças')),
+      body: entries.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => Center(
+          child: FilledButton(
+            onPressed: () => ref.invalidate(financeEntriesProvider),
+            child: Text(
+              'Tentar novamente\n$error',
+              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 20),
+          ),
+        ),
+        data: (items) {
+          if (items.isEmpty) {
+            return const Center(child: Text('Nenhum lançamento financeiro.'));
+          }
 
-            // Financial Monthly Chart (FL Chart)
-            GlassCard(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Desempenho Mensal (Receitas vs Despesas)',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          return RefreshIndicator(
+            onRefresh: () async {
+              ref.invalidate(financeEntriesProvider);
+              await ref.read(financeEntriesProvider.future);
+            },
+            child: ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: items.length,
+              separatorBuilder: (_, __) => const Divider(),
+              itemBuilder: (_, index) {
+                final entry = items[index];
+                final income = entry['type'] == 'INCOME';
+
+                return Dismissible(
+                  key: ValueKey(entry['id']),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    color: Colors.red,
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.all(16),
+                    child: const Icon(Icons.delete, color: Colors.white),
                   ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    height: 160,
-                    child: BarChart(
-                      BarChartData(
-                        borderData: FlBorderData(show: false),
-                        gridData: const FlGridData(show: false),
-                        titlesData: FlTitlesData(
-                          leftTitles: const AxisTitles(
-                              sideTitles: SideTitles(showTitles: false)),
-                          topTitles: const AxisTitles(
-                              sideTitles: SideTitles(showTitles: false)),
-                          rightTitles: const AxisTitles(
-                              sideTitles: SideTitles(showTitles: false)),
-                          bottomTitles: AxisTitles(
-                            sideTitles: SideTitles(
-                              showTitles: true,
-                              getTitlesWidget: (val, meta) {
-                                const labels = ['Mai', 'Jun', 'Jul', 'Ago'];
-                                return Text(labels[val.toInt() % labels.length],
-                                    style: const TextStyle(
-                                        fontSize: 11, color: Colors.grey));
-                              },
-                            ),
+                  confirmDismiss: (_) => _confirmDelete(context),
+                  onDismissed: (_) async {
+                    try {
+                      await ref
+                          .read(businessRepositoryProvider)
+                          .delete('/finance/entries/${entry['id']}');
+
+                      ref.invalidate(financeEntriesProvider);
+                      ref.invalidate(dashboardProvider);
+
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Lançamento excluído com sucesso.'),
                           ),
-                        ),
-                        barGroups: [
-                          BarChartGroupData(x: 0, barRods: [
-                            BarChartRodData(
-                                toY: 5, color: AppColors.income, width: 12)
-                          ]),
-                          BarChartGroupData(x: 1, barRods: [
-                            BarChartRodData(
-                                toY: 8, color: AppColors.income, width: 12)
-                          ]),
-                          BarChartGroupData(x: 2, barRods: [
-                            BarChartRodData(
-                                toY: 6, color: AppColors.income, width: 12)
-                          ]),
-                          BarChartGroupData(x: 3, barRods: [
-                            BarChartRodData(
-                                toY: 10, color: AppColors.income, width: 12)
-                          ]),
-                        ],
+                        );
+                      }
+                    } catch (error) {
+                      ref.invalidate(financeEntriesProvider);
+
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(error.toString())),
+                        );
+                      }
+                    }
+                  },
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor:
+                          (income ? AppColors.income : AppColors.expense)
+                              .withValues(alpha: .15),
+                      child: Icon(
+                        income ? Icons.arrow_downward : Icons.arrow_upward,
+                        color: income ? AppColors.income : AppColors.expense,
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Filters
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Expanded(
-                  child: Text('Extrato Financeiro',
-                      style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
-                ),
-                Row(
-                  children: ['TODOS', 'RECEITAS', 'DESPESAS'].map((f) {
-                    final isSelected = _selectedFilter == f;
-                    return Padding(
-                      padding: const EdgeInsets.only(left: 4),
-                      child: FilterChip(
-                        selected: isSelected,
-                        label: Text(f,
-                            style: TextStyle(
-                                fontSize: 10,
-                                color: isSelected ? Colors.white : null)),
-                        selectedColor: AppColors.primary,
-                        onSelected: (_) => setState(() => _selectedFilter = f),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // Entries List
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: filtered.length,
-              itemBuilder: (context, index) {
-                final e = filtered[index];
-                final isIncome = e['type'] == 'INCOME';
-
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  child: GlassCard(
-                    padding: const EdgeInsets.all(14),
-                    child: Row(
+                    title: Text(entry['description']?.toString() ?? ''),
+                    subtitle: Text(
+                      entry['entryDate']?.toString().split('T').first ?? '',
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        CircleAvatar(
-                          radius: 18,
-                          backgroundColor:
-                              (isIncome ? AppColors.income : AppColors.expense)
-                                  .withValues(alpha: 0.15),
-                          child: Icon(
-                            isIncome
-                                ? Icons.arrow_downward
-                                : Icons.arrow_upward,
-                            color:
-                                isIncome ? AppColors.income : AppColors.expense,
-                            size: 18,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(e['description'],
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14)),
-                              const SizedBox(height: 2),
-                              Text('${e['category']} • ${e['date']}',
-                                  style: const TextStyle(
-                                      color: Colors.grey, fontSize: 12)),
-                            ],
-                          ),
-                        ),
                         Text(
-                          '${isIncome ? '+' : '-'} ${Formatters.currency(e['amount'] as double)}',
+                          '${income ? '+' : '-'} ${Formatters.currency(double.parse(entry['amount'].toString()))}',
                           style: TextStyle(
+                            color: income
+                                ? AppColors.income
+                                : AppColors.expense,
                             fontWeight: FontWeight.bold,
-                            color:
-                                isIncome ? AppColors.income : AppColors.expense,
-                            fontSize: 14,
                           ),
+                        ),
+                        PopupMenuButton<String>(
+                          tooltip: 'Opções',
+                          onSelected: (value) async {
+                            if (value == 'edit') {
+                              await _entryForm(context, ref, entry: entry);
+                            } else if (value == 'delete') {
+                              await _deleteEntry(context, ref, entry);
+                            }
+                          },
+                          itemBuilder: (_) => const [
+                            PopupMenuItem(
+                              value: 'edit',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.edit_outlined),
+                                  SizedBox(width: 12),
+                                  Text('Editar'),
+                                ],
+                              ),
+                            ),
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.delete_outline),
+                                  SizedBox(width: 12),
+                                  Text('Excluir'),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -241,19 +317,13 @@ class _FinanceScreenState extends State<FinanceScreen> {
                 );
               },
             ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.primary,
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Lançamento registrado com sucesso!')),
           );
         },
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('Novo Lançamento',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _entryForm(context, ref),
+        icon: const Icon(Icons.add),
+        label: const Text('Lançamento'),
       ),
     );
   }
