@@ -29,3 +29,7 @@ npm-debug.log*
 *.iml
 .DS_Store
 
+
+# Python cache
+__pycache__/
+*.pyc
