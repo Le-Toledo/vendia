@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateClientDto, UpdateClientDto } from './dto/client.dto';
 import { PaginationDto, paginationMeta } from '../../common/dto/pagination.dto';
@@ -72,10 +73,21 @@ export class ClientsService {
   }
 
   async remove(userId: string, id: string) {
-    await this.findOne(userId, id);
+    const client = await this.findOne(userId, id);
+    const linkedMessage =
+      'Este cliente não pode ser excluído enquanto possuir orçamentos ou contratos vinculados.';
+    if (client.quotes.length || client.contracts.length) {
+      throw new ConflictException(linkedMessage);
+    }
 
-    return this.prisma.client.delete({
-      where: { id },
-    });
+    try {
+      return await this.prisma.client.delete({ where: { id, userId } });
+    } catch (error) {
+      // A relation may have been created after the ownership/link check.
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+        throw new ConflictException(linkedMessage);
+      }
+      throw error;
+    }
   }
 }

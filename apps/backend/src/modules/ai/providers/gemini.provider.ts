@@ -39,7 +39,7 @@ export class GeminiProvider implements AIProvider {
             system_instruction: {
               parts: [
                 {
-                  text: 'Você é o assistente do VendeAI. Responda em português do Brasil com foco em pequenos negócios, orçamentos, contratos e comunicação comercial.',
+                  text: 'Você é o assistente do VendAI. Responda em português do Brasil com foco em pequenos negócios, orçamentos, contratos e comunicação comercial.',
                 },
               ],
             },

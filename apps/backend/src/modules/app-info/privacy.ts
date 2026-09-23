@@ -13,18 +13,18 @@ export function aiProviderInfo(config: ConfigService) {
 }
 export function privacyInfo(config: ConfigService) {
   const provider = aiProviderInfo(config);
-  const controller = config.get<string>('PRIVACY_CONTROLLER_NAME', 'VendeAI');
+  const controller = config.get<string>('PRIVACY_CONTROLLER_NAME', 'VendAI');
   const contact = config.get<string>('SUPPORT_EMAIL', 'vendeai.suport@gmail.com');
   return {
     version: PRIVACY_VERSION,
-    title: 'Privacidade no VendeAI',
+    title: 'Privacidade no VendAI',
     controller,
     contact,
     sections: [
       {
         title: 'Responsável e contato',
         text: contact
-          ? `${controller} é responsável pelo VendeAI. Contato para suporte e solicitações sobre dados: ${contact}.`
+          ? `${controller} é responsável pelo VendAI. Contato para suporte e solicitações sobre dados: ${contact}.`
           : 'O contato do responsável precisa ser configurado antes da distribuição pública.',
       },
       {

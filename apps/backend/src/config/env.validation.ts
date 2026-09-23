@@ -34,7 +34,7 @@ const envSchema = z
     GEMINI_MODEL: z.string().default('gemini-2.5-flash'),
     GROQ_API_KEY: z.string().optional(),
     GROQ_MODEL: z.string().default('llama-3.3-70b-versatile'),
-    PRIVACY_CONTROLLER_NAME: z.string().default('VendeAI'),
+    PRIVACY_CONTROLLER_NAME: z.string().default('VendAI'),
     SUPPORT_EMAIL: z.string().email().default('vendeai.suport@gmail.com'),
     RESEND_API_KEY: z.string().optional(),
     MAIL_FROM: z.string().optional(),

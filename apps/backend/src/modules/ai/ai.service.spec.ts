@@ -64,6 +64,6 @@ describe('AIService', () => {
     });
 
     expect(result).toBeDefined();
-    expect(result.content).toContain('VendeAI');
+    expect(result.content).toContain('VendAI');
   });
 });

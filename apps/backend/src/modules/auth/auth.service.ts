@@ -152,7 +152,7 @@ export class AuthService {
           data: {
             ...data,
             email: identity.email,
-            profile: { create: { fullName: 'Usuário VendeAI' } },
+            profile: { create: { fullName: 'Usuário VendAI' } },
             settings: { create: {} },
           },
           include: { profile: true },

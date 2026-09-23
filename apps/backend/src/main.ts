@@ -46,9 +46,9 @@ async function bootstrap() {
 
   // Swagger Documentation Setup
   const config = new DocumentBuilder()
-    .setTitle('VendeAI SaaS API')
+    .setTitle('VendAI SaaS API')
     .setDescription(
-      'API RESTful do VendeAI - Assistente de gestão inteligente com IA para autônomos, MEIs e pequenas empresas.',
+      'API RESTful do VendAI - Assistente de gestão inteligente com IA para autônomos, MEIs e pequenas empresas.',
     )
     .setVersion('1.0.0')
     .addBearerAuth()
@@ -60,7 +60,7 @@ async function bootstrap() {
   const port = process.env.PORT || 3000;
   await app.listen(port, '0.0.0.0');
 
-  logger.log(`Servidor VendeAI ouvindo na porta ${port} (prefixo /${globalPrefix})`);
+  logger.log(`Servidor VendAI ouvindo na porta ${port} (prefixo /${globalPrefix})`);
   logger.log('Documentação Swagger disponível em /api/docs');
 }
 

@@ -38,7 +38,7 @@ export class GroqProvider implements AIProvider {
             {
               role: 'system',
               content:
-                'Você é o assistente do VendeAI. Responda em português do Brasil com foco em pequenos negócios, orçamentos, contratos e comunicação comercial.',
+                'Você é o assistente do VendAI. Responda em português do Brasil com foco em pequenos negócios, orçamentos, contratos e comunicação comercial.',
             },
             {
               role: 'user',

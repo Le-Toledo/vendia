@@ -63,8 +63,8 @@ export class PasswordResetService {
           from,
           reply_to: this.config.get<string>('SUPPORT_EMAIL', 'vendeai.suport@gmail.com'),
           to: [user.email],
-          subject: 'Recupere seu acesso ao VendeAI',
-          text: `Use este código no VendeAI para escolher uma nova senha:\n\n${token}\n\nEle expira em 15 minutos e só pode ser usado uma vez. Se você não pediu a alteração, ignore este email. Não compartilhe o código.`,
+          subject: 'Recupere seu acesso ao VendAI',
+          text: `Use este código no VendAI para escolher uma nova senha:\n\n${token}\n\nEle expira em 15 minutos e só pode ser usado uma vez. Se você não pediu a alteração, ignore este email. Não compartilhe o código.`,
         }),
       });
       if (!response.ok) throw new Error('Email delivery failed');

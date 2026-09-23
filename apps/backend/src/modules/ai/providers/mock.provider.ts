@@ -18,7 +18,7 @@ export class MockAIProvider implements AIProvider {
       lowerPrompt.includes('proposta')
     ) {
       return {
-        content: `### 📋 Proposta & Orçamento Gerado por IA\n\n**Projeto:** Serviços de Gestão e Tecnologia\n\n1. **Desenvolvimento de Solução / Serviço:** R$ 2.500,00\n2. **Suporte & Configuração Inicial:** R$ 500,00\n\n**Total:** R$ 3.000,00 (Condições: 50% de entrada + 50% na entrega).\n\n*Clique no botão abaixo para transformar esta resposta em um orçamento oficial no VendeAI!*`,
+        content: `### 📋 Proposta & Orçamento Gerado por IA\n\n**Projeto:** Serviços de Gestão e Tecnologia\n\n1. **Desenvolvimento de Solução / Serviço:** R$ 2.500,00\n2. **Suporte & Configuração Inicial:** R$ 500,00\n\n**Total:** R$ 3.000,00 (Condições: 50% de entrada + 50% na entrega).\n\n*Clique no botão abaixo para transformar esta resposta em um orçamento oficial no VendAI!*`,
         actionType: 'create_quote',
         structuredData: {
           items: [
@@ -65,14 +65,14 @@ export class MockAIProvider implements AIProvider {
       lowerPrompt.includes('post')
     ) {
       return {
-        content: `✨ *Copy e Descrição de Alta Conversão:* \n\n🚀 **Transforme sua rotina com qualidade profissional!**\n\nIdeal para quem busca máxima eficiência e excelente custo-benefício. Garanta já o seu com envio rápido para todo o Brasil! 📦⚡\n\n👉 *Clique no link da bio e faça seu pedido hoje!*\n\n#VendeAI #Empreendedorismo #AltaQualidade #OfertaImperdivel`,
+        content: `✨ *Copy e Descrição de Alta Conversão:* \n\n🚀 **Transforme sua rotina com qualidade profissional!**\n\nIdeal para quem busca máxima eficiência e excelente custo-benefício. Garanta já o seu com envio rápido para todo o Brasil! 📦⚡\n\n👉 *Clique no link da bio e faça seu pedido hoje!*\n\n#VendAI #Empreendedorismo #AltaQualidade #OfertaImperdivel`,
         actionType: 'create_copy',
       };
     }
 
     // 5. Perguntas Financeiras e Comerciais Padrão
     return {
-      content: `Olá! Sou o **Assistente VendeAI**. 🚀\n\nAnalisei sua solicitação: "${prompt}".\nComo posso ajudar seu negócio hoje? Posso gerar orçamentos, minutas de contrato, copys para Instagram/Mercado Livre ou mensagens de cobrança para WhatsApp em segundos!`,
+      content: `Olá! Sou o **Assistente VendAI**. 🚀\n\nAnalisei sua solicitação: "${prompt}".\nComo posso ajudar seu negócio hoje? Posso gerar orçamentos, minutas de contrato, copys para Instagram/Mercado Livre ou mensagens de cobrança para WhatsApp em segundos!`,
       actionType: 'none',
     };
   }

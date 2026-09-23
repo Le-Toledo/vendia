@@ -13,7 +13,7 @@ export class AIController {
   constructor(private readonly aiService: AIService) {}
 
   @Post('chat')
-  @ApiOperation({ summary: 'Conversar com o Assistente de IA VendeAI' })
+  @ApiOperation({ summary: 'Conversar com o Assistente de IA VendAI' })
   chat(@CurrentUser() user: any, @Body() dto: ChatAiDto) {
     return this.aiService.processChatMessage(user.id, dto);
   }
