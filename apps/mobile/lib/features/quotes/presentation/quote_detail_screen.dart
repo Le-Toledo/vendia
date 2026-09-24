@@ -10,6 +10,7 @@ import '../../../core/data/business_providers.dart';
 import '../../../core/network/api_providers.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/glass_card.dart';
+import '../../../core/widgets/delete_confirmation.dart';
 import 'package:flutter/foundation.dart';
 
 class QuoteDetailScreen extends ConsumerStatefulWidget {
@@ -158,34 +159,26 @@ class _QuoteDetailScreenState extends ConsumerState<QuoteDetailScreen> {
   }
 
   Future<void> _delete() async {
-    final confirmed =
-        await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Excluir orçamento?'),
-            content: const Text('Esta ação não poderá ser desfeita.'),
-            actions: [
-              TextButton(
-                onPressed: () => context.pop(false),
-                child: const Text('Cancelar'),
-              ),
-              FilledButton(
-                onPressed: () => context.pop(true),
-                child: const Text('Excluir'),
-              ),
-            ],
-          ),
-        ) ??
-        false;
-    if (!confirmed) return;
+    if (_busy) return;
+    setState(() => _busy = true);
     try {
+      final confirmed = await confirmDeletion(context, 'orçamento');
+      if (!mounted || !confirmed) return;
       await ref
           .read(businessRepositoryProvider)
           .delete('/quotes/${_quote['id']}');
+      if (!mounted) return;
       ref.invalidate(quotesProvider);
-      if (mounted) context.go('/quotes');
+      ref.invalidate(clientsProvider);
+      ref.invalidate(dashboardProvider);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Orçamento excluído.')));
+      context.go('/quotes');
     } catch (error) {
-      if (mounted) _showError(error);
+      if (mounted) _showError(deletionError(error, 'orçamento'));
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -207,13 +200,15 @@ class _QuoteDetailScreenState extends ConsumerState<QuoteDetailScreen> {
             icon: const Icon(Icons.edit_outlined),
           ),
           PopupMenuButton<String>(
+            enabled: !_busy,
+            tooltip: 'Ações do orçamento',
             onSelected: (value) {
               if (value == 'duplicate') _duplicate();
               if (value == 'delete') _delete();
             },
             itemBuilder: (_) => const [
               PopupMenuItem(value: 'duplicate', child: Text('Duplicar')),
-              PopupMenuItem(value: 'delete', child: Text('Excluir')),
+              PopupMenuItem(value: 'delete', child: Text('Excluir orçamento')),
             ],
           ),
         ],
@@ -295,6 +290,12 @@ class _QuoteDetailScreenState extends ConsumerState<QuoteDetailScreen> {
             const SizedBox(height: 6),
             Text(_quote['notes'].toString()),
           ],
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: _busy ? null : _delete,
+            icon: const Icon(Icons.delete_outline),
+            label: const Text('Excluir orçamento'),
+          ),
           const SizedBox(height: 28),
           FilledButton.icon(
             onPressed: _busy ? null : _sharePdf,

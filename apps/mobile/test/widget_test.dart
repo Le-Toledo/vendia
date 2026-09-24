@@ -14,7 +14,7 @@ class _LoggedOutController extends AuthController {
 }
 
 void main() {
-  testWidgets('VendeAI App Smoke Test - Login Screen Initial Render', (
+  testWidgets('VendAI App Smoke Test - Login Screen Initial Render', (
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
@@ -27,7 +27,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('VendeAI'), findsOneWidget);
-    expect(find.text('Entrar no VendeAI'), findsOneWidget);
+    expect(find.text('VendAI'), findsOneWidget);
+    expect(find.text('Entrar no VendAI'), findsOneWidget);
   });
 }

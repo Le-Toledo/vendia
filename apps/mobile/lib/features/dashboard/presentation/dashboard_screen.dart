@@ -12,11 +12,14 @@ class DashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authControllerProvider).valueOrNull;
+    // The router redirects asynchronously; never render the prior account in
+    // the frame between session invalidation and navigation to login.
+    if (user == null) return const SizedBox.shrink();
     final summary = ref.watch(dashboardProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'VendeAI',
+          'VendAI',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
@@ -32,11 +35,11 @@ class DashboardScreen extends ConsumerWidget {
           padding: const EdgeInsets.all(16),
           children: [
             Text(
-              'Olá, ${user?.name ?? ''} 👋',
+              'Olá, ${user.name} 👋',
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             Text(
-              user?.companyName ?? 'Visão geral do seu negócio',
+              user.companyName ?? 'Visão geral do seu negócio',
               style: const TextStyle(color: Colors.grey),
             ),
             const SizedBox(height: 20),

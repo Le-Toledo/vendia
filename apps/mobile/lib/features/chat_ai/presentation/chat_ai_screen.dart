@@ -20,7 +20,7 @@ class _ChatAiScreenState extends ConsumerState<ChatAiScreen> {
     {
       'sender': 'ai',
       'text':
-          'Olá! Sou o **Assistente VendeAI**. 🤖✨\n\nComo posso ajudar seu negócio hoje? Posso criar orçamentos, minutas de contrato, mensagens de cobrança para WhatsApp ou tirar dúvidas financeiras.',
+          'Olá! Sou o **Assistente VendAI**. 🤖✨\n\nComo posso ajudar seu negócio hoje? Posso criar orçamentos, minutas de contrato, mensagens de cobrança para WhatsApp ou tirar dúvidas financeiras.',
     },
   ];
 
@@ -106,7 +106,7 @@ class _ChatAiScreenState extends ConsumerState<ChatAiScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Chat IA VendeAI',
+                  'Chat IA VendAI',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 Text(
@@ -187,7 +187,7 @@ class _ChatAiScreenState extends ConsumerState<ChatAiScreen> {
                   ),
                   SizedBox(width: 8),
                   Text(
-                    'VendeAI está digitando...',
+                    'VendAI está digitando...',
                     style: TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                 ],

@@ -50,8 +50,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               name: 'vendeai_meus_dados.json',
             ),
           ],
-          title: 'Meus dados do VendeAI',
-          text: 'Exportação dos meus dados do VendeAI.',
+          title: 'Meus dados do VendAI',
+          text: 'Exportação dos meus dados do VendAI.',
           sharePositionOrigin: Rect.fromCenter(
             center: size.center(Offset.zero),
             width: 1,

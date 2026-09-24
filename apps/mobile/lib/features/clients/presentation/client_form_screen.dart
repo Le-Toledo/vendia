@@ -4,6 +4,7 @@ import '../../../core/widgets/custom_button.dart';
 import '../../../core/widgets/custom_text_field.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/data/business_providers.dart';
+import '../../../core/widgets/delete_confirmation.dart';
 
 class ClientFormScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic>? clientToEdit;
@@ -15,6 +16,7 @@ class ClientFormScreen extends ConsumerStatefulWidget {
 }
 
 class _ClientFormScreenState extends ConsumerState<ClientFormScreen> {
+  bool _busy = false;
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
   late final TextEditingController _companyController;
@@ -50,7 +52,9 @@ class _ClientFormScreenState extends ConsumerState<ClientFormScreen> {
   }
 
   Future<void> _onSave() async {
+    if (_busy) return;
     if (_formKey.currentState!.validate()) {
+      setState(() => _busy = true);
       try {
         await ref.read(businessRepositoryProvider).save('/clients', {
           'name': _nameController.text.trim(),
@@ -67,15 +71,46 @@ class _ClientFormScreenState extends ConsumerState<ClientFormScreen> {
           if (_notesController.text.trim().isNotEmpty)
             'notes': _notesController.text.trim(),
         }, id: widget.clientToEdit?['id'] as String?);
+        if (!mounted) return;
         ref.invalidate(clientsProvider);
-        if (mounted) context.pop();
+        context.pop();
       } catch (error) {
         if (mounted) {
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(SnackBar(content: Text(error.toString())));
         }
+      } finally {
+        if (mounted) setState(() => _busy = false);
       }
+    }
+  }
+
+  Future<void> _delete() async {
+    if (_busy) return;
+    FocusScope.of(context).unfocus();
+    setState(() => _busy = true);
+    try {
+      final confirmed = await confirmDeletion(context, 'cliente');
+      if (!mounted || !confirmed) return;
+      await ref
+          .read(businessRepositoryProvider)
+          .delete('/clients/${widget.clientToEdit!['id']}');
+      if (!mounted) return;
+      ref.invalidate(clientsProvider);
+      ref.invalidate(dashboardProvider);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Cliente excluído.')));
+      context.go('/clients');
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(deletionError(error, 'cliente'))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -90,42 +125,10 @@ class _ClientFormScreenState extends ConsumerState<ClientFormScreen> {
         title: Text(isEditing ? 'Editar Cliente' : 'Novo Cliente'),
         actions: [
           if (isEditing)
-            IconButton(
-              icon: const Icon(Icons.delete_outline, color: Colors.red),
-              onPressed: () async {
-                final confirmed = await showDialog<bool>(
-                  context: context,
-                  builder: (dialogContext) => AlertDialog(
-                    title: const Text('Excluir cliente?'),
-                    content: const Text('Esta ação não pode ser desfeita.'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(dialogContext, false),
-                        child: const Text('Cancelar'),
-                      ),
-                      FilledButton(
-                        onPressed: () => Navigator.pop(dialogContext, true),
-                        child: const Text('Excluir'),
-                      ),
-                    ],
-                  ),
-                );
-                if (confirmed == true) {
-                  try {
-                    await ref
-                        .read(businessRepositoryProvider)
-                        .delete('/clients/${widget.clientToEdit!['id']}');
-                    ref.invalidate(clientsProvider);
-                    if (context.mounted) context.pop();
-                  } catch (error) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(SnackBar(content: Text(error.toString())));
-                    }
-                  }
-                }
-              },
+            TextButton.icon(
+              icon: const Icon(Icons.delete_outline),
+              label: const Text('Excluir cliente'),
+              onPressed: _busy ? null : _delete,
             ),
         ],
       ),
@@ -193,7 +196,8 @@ class _ClientFormScreenState extends ConsumerState<ClientFormScreen> {
                 const SizedBox(height: 28),
                 CustomButton(
                   text: isEditing ? 'Salvar Alterações' : 'Cadastrar Cliente',
-                  onPressed: _onSave,
+                  onPressed: _busy ? null : _onSave,
+                  isLoading: _busy,
                 ),
               ],
             ),

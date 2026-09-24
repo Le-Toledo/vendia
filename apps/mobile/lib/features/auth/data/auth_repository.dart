@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'package:crypto/crypto.dart';
@@ -5,7 +6,6 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_client.dart';
-import '../../../core/storage/secure_storage_service.dart';
 
 class AuthUser {
   const AuthUser({
@@ -58,10 +58,8 @@ class AuthUser {
 }
 
 class AuthRepository {
-  AuthRepository(this.api, {SecureStorageService? storage})
-    : storage = storage ?? SecureStorageService();
+  AuthRepository(this.api);
   final ApiClient api;
-  final SecureStorageService storage;
   bool _googleInitialized = false;
 
   Future<AuthUser> login(String email, String password) =>
@@ -79,6 +77,7 @@ class AuthRepository {
   });
 
   Future<AuthUser> loginWithApple() async {
+    final generation = await api.beginSessionChange();
     final random = Random.secure();
     final nonce = List.generate(
       32,
@@ -91,10 +90,11 @@ class AuthRepository {
     return _authenticate('/auth/apple', {
       'authorizationCode': credential.authorizationCode,
       'nonce': nonce,
-    });
+    }, generation: generation);
   }
 
   Future<AuthUser> loginWithGoogle() async {
+    final generation = await api.beginSessionChange();
     if (AppConstants.googleServerClientId.isEmpty) {
       throw const ApiException(
         'Login Google não configurado neste aplicativo.',
@@ -114,49 +114,64 @@ class AuthRepository {
     if (idToken == null) {
       throw const ApiException('O Google não retornou um token de identidade.');
     }
-    return _authenticate('/auth/google', {'idToken': idToken});
+    return _authenticate('/auth/google', {
+      'idToken': idToken,
+    }, generation: generation);
   }
 
   Future<AuthUser> restore() async {
-    if (await storage.getRefreshToken() == null) {
+    final generation = api.sessionGeneration;
+    if (!await api.hasStoredSession(generation)) {
       throw const ApiException('Sessão não encontrada');
     }
-    final response = await api.dio.get('/users/me');
+    final response = await api.dio.get(
+      '/users/me',
+      options: Options(extra: {ApiClient.generationKey: generation}),
+    );
     return AuthUser.fromJson(api.unwrap<Map<String, dynamic>>(response));
   }
 
-  Future<void> logout() async {
-    try {
-      await api.dio.post('/auth/logout');
-    } finally {
-      await storage.clearAll();
-    }
-  }
+  Future<void> logout() => api.logout();
 
   Future<void> deleteAccount() async {
+    final generation = api.sessionGeneration;
     try {
-      await api.dio.delete('/users/me', data: {'confirmation': 'EXCLUIR'});
-
-      await storage.clearAll();
+      await api.dio.delete(
+        '/users/me',
+        data: {'confirmation': 'EXCLUIR'},
+        options: Options(extra: {ApiClient.generationKey: generation}),
+      );
+      await api.beginSessionChange(expectedGeneration: generation);
     } catch (error) {
       throw api.readableError(error);
     }
   }
 
   Future<void> clearLocalSession() async {
-    await storage.clearAll();
+    await api.beginSessionChange();
   }
 
-  Future<AuthUser> _authenticate(String path, Map<String, dynamic> body) async {
+  Future<AuthUser> _authenticate(
+    String path,
+    Map<String, dynamic> body, {
+    int? generation,
+  }) async {
     try {
-      final response = await api.dio.post(path, data: body);
-      final data = api.unwrap<Map<String, dynamic>>(response);
-      final tokens = data['tokens'] as Map<String, dynamic>;
-      await storage.saveTokens(
-        accessToken: tokens['accessToken'] as String,
-        refreshToken: tokens['refreshToken'] as String,
+      final current = generation ?? await api.beginSessionChange();
+      final response = await api.dio.post(
+        path,
+        data: body,
+        options: Options(extra: {ApiClient.generationKey: current}),
       );
-      return AuthUser.fromJson(data['user'] as Map<String, dynamic>);
+      final data = api.unwrap<Map<String, dynamic>>(response);
+      final user = AuthUser.fromJson(data['user'] as Map<String, dynamic>);
+      final tokens = data['tokens'] as Map<String, dynamic>;
+      await api.acceptSession(
+        current,
+        tokens['accessToken'] as String,
+        tokens['refreshToken'] as String,
+      );
+      return user;
     } catch (error) {
       throw api.readableError(error);
     }

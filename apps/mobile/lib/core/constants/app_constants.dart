@@ -1,5 +1,5 @@
 class AppConstants {
-  static const String appName = 'VendeAI';
+  static const String appName = 'VendAI';
   static const String appTagline =
       'Seu Assistente de Negócios com Inteligência Artificial';
   static const String appEnvironment = String.fromEnvironment(

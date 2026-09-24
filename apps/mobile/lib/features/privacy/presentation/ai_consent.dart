@@ -30,7 +30,7 @@ Future<bool> ensureAiConsent(BuildContext context, WidgetRef ref) async {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Para responder ao chat e gerar textos de marketing, o VendeAI enviará os textos que você informar ao provedor ${ai['name']}. Isso pode incluir dados pessoais presentes no texto e processamento fora do Brasil. Não envie senhas ou dados sensíveis. Você pode recusar e continuar usando a gestão do negócio, ou revogar a autorização em Configurações.',
+                'Para responder ao chat e gerar textos de marketing, o VendAI enviará os textos que você informar ao provedor ${ai['name']}. Isso pode incluir dados pessoais presentes no texto e processamento fora do Brasil. Não envie senhas ou dados sensíveis. Você pode recusar e continuar usando a gestão do negócio, ou revogar a autorização em Configurações.',
               ),
               TextButton(
                 onPressed: () => Navigator.of(dialogContext).push(

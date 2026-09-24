@@ -132,7 +132,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     const SizedBox(width: 14),
                     const Text(
-                      'VendeAI',
+                      'VendAI',
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
@@ -214,7 +214,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 const SizedBox(height: 24),
 
                 CustomButton(
-                  text: 'Entrar no VendeAI',
+                  text: 'Entrar no VendAI',
                   isLoading: _isLoading,
                   onPressed: _onLogin,
                 ),

@@ -131,8 +131,8 @@ void main() {
     await tester.enterText(fields.at(0), 'missing@example.com');
     await tester.enterText(fields.at(1), 'incorrect-password');
     for (var attempt = 0; attempt < 2; attempt++) {
-      await tester.ensureVisible(find.text('Entrar no VendeAI'));
-      await tester.tap(find.text('Entrar no VendeAI'));
+      await tester.ensureVisible(find.text('Entrar no VendAI'));
+      await tester.tap(find.text('Entrar no VendAI'));
       await tester.pumpAndSettle();
       expect(identical(container.read(routerProvider), router), isTrue);
       expect(

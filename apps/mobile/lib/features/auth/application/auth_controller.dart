@@ -8,7 +8,9 @@ final authRepositoryProvider = Provider<AuthRepository>(
 final authControllerProvider =
     StateNotifierProvider<AuthController, AsyncValue<AuthUser?>>((ref) {
       final controller = AuthController(ref.watch(authRepositoryProvider));
-      ref.read(apiClientProvider).onSessionExpired = controller.expireSession;
+      final api = ref.read(apiClientProvider);
+      api.onSessionExpired = controller.expireSession;
+      ref.onDispose(() => api.onSessionExpired = null);
       controller.restore();
       return controller;
     });
@@ -16,11 +18,13 @@ final authControllerProvider =
 class AuthController extends StateNotifier<AsyncValue<AuthUser?>> {
   AuthController(this.repository) : super(const AsyncLoading());
   final AuthRepository repository;
+  int _operation = 0;
+
   Future<void> restore() async {
-    try {
-      state = AsyncData(await repository.restore());
-    } catch (_) {
-      state = const AsyncData(null);
+    final operation = ++_operation;
+    final result = await AsyncValue.guard(repository.restore);
+    if (mounted && operation == _operation) {
+      state = result.hasError ? const AsyncData(null) : result;
     }
   }
 
@@ -42,25 +46,35 @@ class AuthController extends StateNotifier<AsyncValue<AuthUser?>> {
   Future<void> loginWithApple() => _run(repository.loginWithApple);
   Future<void> loginWithGoogle() => _run(repository.loginWithGoogle);
   Future<void> logout() async {
-    try {
-      await repository.logout();
-    } finally {
-      state = const AsyncData(null);
-    }
+    // Clear visible data before waiting for storage or the network.
+    ++_operation;
+    state = const AsyncData(null);
+    await repository.logout();
   }
 
-  void expireSession() => state = const AsyncData(null);
+  void expireSession() {
+    ++_operation;
+    if (mounted) state = const AsyncData(null);
+  }
+
   Future<void> clearLocalSession() async {
-    await repository.clearLocalSession();
+    ++_operation;
     state = const AsyncData(null);
+    await repository.clearLocalSession();
   }
 
   Future<void> deleteAccount() async {
+    final operation = ++_operation;
     await repository.deleteAccount();
-    state = const AsyncData(null);
+    if (mounted && operation == _operation) state = const AsyncData(null);
   }
 
   Future<void> _run(Future<AuthUser> Function() action) async {
-    state = await AsyncValue.guard(action);
+    final operation = ++_operation;
+    // Do not retain the previous user while the next login is pending. Keeping
+    // this as AsyncData also preserves the login form instead of showing splash.
+    state = const AsyncData(null);
+    final result = await AsyncValue.guard(action);
+    if (mounted && operation == _operation) state = result;
   }
 }
